@@ -44,8 +44,8 @@
   "scripts": {
     "start": "expo start --dev-client",
     "start:expo-go": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo start --go --ios",
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",

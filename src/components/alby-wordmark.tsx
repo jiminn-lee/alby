@@ -51,5 +51,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.brand,
     fontSize: 36,
     lineHeight: 48,
+    letterSpacing: -0.5,
   },
 });
