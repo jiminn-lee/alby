@@ -1,10 +1,10 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useScrollToTop } from 'expo-router';
 import type { Icon } from 'phosphor-react-native';
 import { GearIcon } from 'phosphor-react-native/src/icons/Gear';
 import { LockIcon } from 'phosphor-react-native/src/icons/Lock';
 import { UserPlusIcon } from 'phosphor-react-native/src/icons/UserPlus';
-import { Fragment, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,6 +25,7 @@ export function ProfileScreen({ username }: { username: string }) {
   const { session } = useAuth();
   const insets = useSafeAreaInsets();
   const { width: viewportWidth } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView>(null);
   const overview = useProfileOverview(username);
   const [tab, setTab] = useState<Tab>('Feed');
   const profile = overview.data;
@@ -35,6 +36,8 @@ export function ProfileScreen({ username }: { username: string }) {
   const saved = useProfileSaved(profile?.id, allowed && tab === 'Saved');
   const follow = useFollowMutation();
 
+  useScrollToTop(scrollRef);
+
   if (overview.isLoading) return <ScreenState label="Loading profile..." />;
   if (overview.error || !profile) return <ScreenState error={overview.error?.message ?? 'Profile not found.'} />;
 
@@ -42,7 +45,7 @@ export function ProfileScreen({ username }: { username: string }) {
   const share = () => Share.share({ message: `Find @${profile.username} on Alby: alby://users/${profile.username}` });
 
   return (
-    <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + insets.bottom + 24 }]} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} style={styles.screen}>
+    <ScrollView ref={scrollRef} contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + insets.bottom + 24 }]} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} style={styles.screen}>
       <View style={styles.content}>
         <View style={styles.profilePanel}>
           <View style={[styles.profilePadding, { paddingTop: insets.top + 24 }]}>

@@ -1,6 +1,6 @@
-import { router } from 'expo-router';
+import { router, useScrollToTop } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native/src/icons/MagnifyingGlass';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,7 +15,10 @@ export default function ExploreScreen() {
   const albums = useSpotifyAlbumSearch(search);
   const materialize = useMaterializeSpotifyAlbum();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
   const isWaitingForDebounce = albums.normalizedSearch !== albums.debouncedSearch;
+
+  useScrollToTop(scrollRef);
 
   const changeSearch = (value: string) => {
     materialize.reset();
@@ -34,6 +37,7 @@ export default function ExploreScreen() {
   const results = albums.data?.albums ?? [];
   return (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={[styles.content, { paddingBottom: BottomTabInset + insets.bottom + 24 }]}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
