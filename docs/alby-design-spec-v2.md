@@ -365,7 +365,7 @@ The current composer is a 345px-wide, approximately 288px-tall modal with 24px p
 
 Purpose: manage albums the user wants to hear later from inside Profile.
 
-Listen Later is available only while the user has no ratings for the album. Creating a rating removes the active saved item but preserves its historical first-save activity; deleting every rating makes the album eligible to save again.
+Listen Later is available only while the user has no ratings for the album. Saving creates a feed activity that remains hidden for five seconds. Removing the saved item during that window prevents the activity from appearing; removing it later deletes the activity and its engagement. Creating a rating removes both the active saved item and its activity, while deleting every rating makes the album eligible to save again. Re-saving creates a fresh activity with a new five-second delay.
 
 Required content:
 

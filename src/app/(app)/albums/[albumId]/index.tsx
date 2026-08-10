@@ -51,7 +51,7 @@ export default function AlbumDetailScreen() {
   const goBack = () => router.canGoBack() ? router.back() : router.replace('/');
   const scrollToTop = () => scrollRef.current?.scrollTo({ animated: true, y: 0 });
   const openRatingComposer = () => router.push({ pathname: '/albums/[albumId]/rate', params: { albumId } });
-  const toggleListenLater = () => listenLater.mutate({ albumId: album.id, saved: isSaved });
+  const toggleListenLater = () => listenLater.mutate({ albumId: album.id, shouldSave: !isSaved });
   const share = () => Share.share({ message: `${album.title} by ${album.artist_name} on Alby: alby://albums/${album.id}` });
   const confirmDelete = (ratingId: string) => Alert.alert(
     'Delete rating?',
