@@ -27,7 +27,7 @@ export function HomeFeed({ items }: { items: HomeFeedItem[] }) {
       rateLabel: item.my_rating_value == null ? 'Rate it' : 'Rate again',
       save: item.my_rating_value == null ? {
         initiallySaved: item.saved_by_me,
-        onToggle: (saved) => listenLater.mutate({ albumId: item.album_id, saved: !saved }),
+        onToggle: (shouldSave) => listenLater.mutate({ albumId: item.album_id, shouldSave }),
       } : undefined,
     };
     const common = {
@@ -101,7 +101,7 @@ export function ActivityFeed({ albumDetail = false, items, onDeleteRating, pinne
       rateLabel: item.my_rating_value == null ? 'Rate it' : 'Rate again',
       save: item.my_rating_value == null ? {
         initiallySaved: item.saved_by_me,
-        onToggle: (saved) => listenLater.mutate({ albumId: item.album_id, saved: !saved }),
+        onToggle: (shouldSave) => listenLater.mutate({ albumId: item.album_id, shouldSave }),
       } : undefined,
     };
     const common = {

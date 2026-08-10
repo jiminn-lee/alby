@@ -21,7 +21,7 @@ where id between '10000000-0000-0000-0000-000000000001'::uuid
 
 \ir fixtures.inc
 
-select plan(43);
+select plan(51);
 
 select hasnt_column(
   'public',
@@ -336,7 +336,7 @@ values (
   '39000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000007',
-  '2026-08-05 12:00:00+00'
+  now()
 );
 
 select is(
@@ -344,66 +344,50 @@ select is(
     where actor_id = '00000000-0000-0000-0000-000000000001'
       and album_id = '10000000-0000-0000-0000-000000000007'
       and activity_type = 'listen_later_added'),
-  1::bigint,
-  'the first save creates one activity event'
+  0::bigint,
+  'a fresh save activity is hidden during the publication delay'
 );
 
 select is(
-  (select created_at from public.activity_events
+  (select count(*) from public.get_home_feed(50)
     where actor_id = '00000000-0000-0000-0000-000000000001'
       and album_id = '10000000-0000-0000-0000-000000000007'
       and activity_type = 'listen_later_added'),
-  '2026-08-05 12:00:00+00'::timestamptz,
-  'save activity records the first-save timestamp'
+  0::bigint,
+  'the home feed omits a save during the publication delay'
 );
-
-insert into public.likes (user_id, activity_event_id)
-select '00000000-0000-0000-0000-000000000001', id
-from public.activity_events
-where actor_id = '00000000-0000-0000-0000-000000000001'
-  and album_id = '10000000-0000-0000-0000-000000000007'
-  and activity_type = 'listen_later_added';
-
-insert into public.comments (id, user_id, activity_event_id, body)
-select
-  '49000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000001',
-  id,
-  'Keeping this activity around.'
-from public.activity_events
-where actor_id = '00000000-0000-0000-0000-000000000001'
-  and album_id = '10000000-0000-0000-0000-000000000007'
-  and activity_type = 'listen_later_added';
 
 delete from public.listen_later_items
 where id = '39000000-0000-0000-0000-000000000001';
 
+set local role postgres;
+
 select is(
   (select count(*) from public.activity_events
     where actor_id = '00000000-0000-0000-0000-000000000001'
       and album_id = '10000000-0000-0000-0000-000000000007'
-      and activity_type = 'listen_later_added'
-      and listen_later_item_id is null),
-  1::bigint,
-  'unsaving preserves the activity and clears its active item link'
+      and activity_type = 'listen_later_added'),
+  0::bigint,
+  'unsaving during the delay deletes the pending activity event'
 );
 
-select is(
-  (select count(*) from public.likes like_row
-    join public.activity_events event on event.id = like_row.activity_event_id
-    where event.actor_id = '00000000-0000-0000-0000-000000000001'
-      and event.album_id = '10000000-0000-0000-0000-000000000007'),
-  1::bigint,
-  'unsaving preserves activity likes'
+select throws_ok(
+  $$insert into public.activity_events (activity_type, actor_id, album_id)
+    values (
+      'listen_later_added',
+      '00000000-0000-0000-0000-000000000001',
+      '10000000-0000-0000-0000-000000000007'
+    )$$,
+  '23514',
+  null,
+  'listen later activity cannot exist without a saved item'
 );
 
-select is(
-  (select count(*) from public.comments comment_row
-    join public.activity_events event on event.id = comment_row.activity_event_id
-    where event.actor_id = '00000000-0000-0000-0000-000000000001'
-      and event.album_id = '10000000-0000-0000-0000-000000000007'),
-  1::bigint,
-  'unsaving preserves activity comments'
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
 );
 
 insert into public.listen_later_items (id, user_id, album_id, created_at)
@@ -411,7 +395,7 @@ values (
   '39000000-0000-0000-0000-000000000002',
   '00000000-0000-0000-0000-000000000001',
   '10000000-0000-0000-0000-000000000007',
-  '2026-08-06 12:00:00+00'
+  now() - interval '6 seconds'
 );
 
 select is(
@@ -420,16 +404,16 @@ select is(
       and album_id = '10000000-0000-0000-0000-000000000007'
       and activity_type = 'listen_later_added'),
   1::bigint,
-  're-saving does not create a second activity event'
+  'a save activity becomes visible after five seconds'
 );
 
 select is(
-  (select created_at from public.activity_events
+  (select count(*) from public.get_home_feed(50)
     where actor_id = '00000000-0000-0000-0000-000000000001'
       and album_id = '10000000-0000-0000-0000-000000000007'
       and activity_type = 'listen_later_added'),
-  '2026-08-05 12:00:00+00'::timestamptz,
-  're-saving preserves the first-save activity timestamp'
+  1::bigint,
+  'the home feed publishes a save after five seconds'
 );
 
 select is(
@@ -438,8 +422,98 @@ select is(
       and album_id = '10000000-0000-0000-0000-000000000007'
       and activity_type = 'listen_later_added'),
   '39000000-0000-0000-0000-000000000002'::uuid,
-  're-saving reconnects the original event to the active item'
+  'a published save activity is linked to its saved item'
 );
+
+insert into public.likes (user_id, activity_event_id, created_at)
+select '00000000-0000-0000-0000-000000000001', id, '2099-01-01 00:00:00+00'
+from public.activity_events
+where listen_later_item_id = '39000000-0000-0000-0000-000000000002';
+
+insert into public.comments (id, user_id, activity_event_id, body)
+select
+  '49000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000001',
+  id,
+  'This activity should be removed with the save.'
+from public.activity_events
+where listen_later_item_id = '39000000-0000-0000-0000-000000000002';
+
+delete from public.listen_later_items
+where id = '39000000-0000-0000-0000-000000000002';
+
+select is(
+  (select count(*) from public.activity_events
+    where actor_id = '00000000-0000-0000-0000-000000000001'
+      and album_id = '10000000-0000-0000-0000-000000000007'
+      and activity_type = 'listen_later_added'),
+  0::bigint,
+  'unsaving deletes an already-published activity event'
+);
+
+set local role postgres;
+
+select is(
+  (select count(*) from public.likes where created_at = '2099-01-01 00:00:00+00')
+    + (select count(*) from public.comments where id = '49000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'unsaving cascades deletion to activity engagement'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+
+insert into public.listen_later_items (id, user_id, album_id, created_at)
+values (
+  '39000000-0000-0000-0000-000000000003',
+  '00000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000007',
+  now() - interval '6 seconds'
+);
+
+select is(
+  (select count(*) from public.activity_events
+    where actor_id = '00000000-0000-0000-0000-000000000001'
+      and album_id = '10000000-0000-0000-0000-000000000007'
+      and activity_type = 'listen_later_added'),
+  1::bigint,
+  're-saving creates a new activity event'
+);
+
+select is(
+  (select listen_later_item_id from public.activity_events
+    where actor_id = '00000000-0000-0000-0000-000000000001'
+      and album_id = '10000000-0000-0000-0000-000000000007'
+      and activity_type = 'listen_later_added'),
+  '39000000-0000-0000-0000-000000000003'::uuid,
+  'the re-save activity belongs to the new saved item'
+);
+
+select ok(
+  (select event.created_at = saved.created_at
+    from public.activity_events event
+    join public.listen_later_items saved on saved.id = event.listen_later_item_id
+    where saved.id = '39000000-0000-0000-0000-000000000003'),
+  'the re-save activity uses the new save timestamp'
+);
+
+insert into public.likes (user_id, activity_event_id, created_at)
+select '00000000-0000-0000-0000-000000000001', id, '2099-01-02 00:00:00+00'
+from public.activity_events
+where listen_later_item_id = '39000000-0000-0000-0000-000000000003';
+
+insert into public.comments (id, user_id, activity_event_id, body)
+select
+  '49000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000001',
+  id,
+  'Rating should remove this activity too.'
+from public.activity_events
+where listen_later_item_id = '39000000-0000-0000-0000-000000000003';
 
 select throws_ok(
   $$insert into public.listen_later_items (user_id, album_id)
@@ -453,13 +527,21 @@ select throws_ok(
 );
 
 select lives_ok(
-  $$insert into public.ratings (user_id, album_id, value)
+  $$insert into public.ratings (id, user_id, album_id, value)
     values (
+      '59000000-0000-0000-0000-000000000001',
       '00000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000007',
       4.0
     )$$,
   'rating an album currently in Listen Later succeeds'
+);
+
+select is(
+  (select count(*) from public.activity_events
+    where rating_id = '59000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'rating activity is visible immediately'
 );
 
 select is(
@@ -474,10 +556,25 @@ select is(
   (select count(*) from public.activity_events
     where actor_id = '00000000-0000-0000-0000-000000000001'
       and album_id = '10000000-0000-0000-0000-000000000007'
-      and activity_type = 'listen_later_added'
-      and listen_later_item_id is null),
-  1::bigint,
-  'rating preserves the historical first-save activity'
+      and activity_type = 'listen_later_added'),
+  0::bigint,
+  'rating deletes the associated save activity'
+);
+
+set local role postgres;
+
+select is(
+  (select count(*) from public.likes where created_at = '2099-01-02 00:00:00+00')
+    + (select count(*) from public.comments where id = '49000000-0000-0000-0000-000000000002'),
+  0::bigint,
+  'rating cascades deletion to save activity engagement'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
 );
 
 delete from public.ratings
@@ -487,7 +584,7 @@ where user_id = '00000000-0000-0000-0000-000000000001'
 select lives_ok(
   $$insert into public.listen_later_items (id, user_id, album_id)
     values (
-      '39000000-0000-0000-0000-000000000003',
+      '39000000-0000-0000-0000-000000000004',
       '00000000-0000-0000-0000-000000000001',
       '10000000-0000-0000-0000-000000000007'
     )$$,
@@ -500,6 +597,24 @@ select is(
       and album_id = '10000000-0000-0000-0000-000000000007'),
   1::bigint,
   'the album is active in Listen Later again'
+);
+
+select is(
+  (select count(*) from public.activity_events
+    where actor_id = '00000000-0000-0000-0000-000000000001'
+      and album_id = '10000000-0000-0000-0000-000000000007'
+      and activity_type = 'listen_later_added'),
+  0::bigint,
+  'a re-save after rating starts a fresh publication delay'
+);
+
+set local role postgres;
+
+select is(
+  (select count(*) from public.activity_events
+    where listen_later_item_id = '39000000-0000-0000-0000-000000000004'),
+  1::bigint,
+  'the delayed re-save has its own pending activity event'
 );
 
 select * from finish();

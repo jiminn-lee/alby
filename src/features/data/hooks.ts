@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth-provider';
 import type { Album, AlbumRatingSummary, HomeFeedItem, ProfileOverview, Rating } from '@/types/domain';
 
+const LISTEN_LATER_ACTIVITY_DELAY_MS = 5_000;
+
 export const queryKeys = {
   home: ['home-feed'] as const,
   album: (id: string) => ['album', id] as const,
@@ -195,6 +197,17 @@ function useInvalidateSocial() {
   };
 }
 
+function useInvalidateActivityFeeds() {
+  const client = useQueryClient();
+  return async (albumId: string) => {
+    await Promise.all([
+      client.invalidateQueries({ queryKey: queryKeys.home }),
+      client.invalidateQueries({ queryKey: ['profile-feed'] }),
+      client.invalidateQueries({ queryKey: queryKeys.albumActivity(albumId) }),
+    ]);
+  };
+}
+
 export function useFollowMutation() {
   const { session } = useAuth();
   const invalidate = useInvalidateSocial();
@@ -239,15 +252,23 @@ export function useDeleteRatingMutation() {
 
 export function useListenLaterMutation() {
   const { session } = useAuth(); const invalidate = useInvalidateSocial();
+  const invalidateActivityFeeds = useInvalidateActivityFeeds();
   return useMutation({
-    mutationFn: async ({ albumId, saved }: { albumId: string; saved: boolean }) => {
+    mutationFn: async ({ albumId, shouldSave }: { albumId: string; shouldSave: boolean }) => {
       if (!session) throw new Error('Sign in required.');
-      const result = saved
-        ? await supabase.from('listen_later_items').delete().eq('album_id', albumId).eq('user_id', session.user.id)
-        : await supabase.from('listen_later_items').insert({ album_id: albumId, user_id: session.user.id });
+      const result = shouldSave
+        ? await supabase.from('listen_later_items').insert({ album_id: albumId, user_id: session.user.id })
+        : await supabase.from('listen_later_items').delete().eq('album_id', albumId).eq('user_id', session.user.id);
       if (result.error) throw result.error;
     },
-    onSuccess: (_data, variables) => invalidate(variables.albumId),
+    onSuccess: (_data, variables) => {
+      if (variables.shouldSave) {
+        setTimeout(() => {
+          void invalidateActivityFeeds(variables.albumId);
+        }, LISTEN_LATER_ACTIVITY_DELAY_MS);
+      }
+      return invalidate(variables.albumId);
+    },
   });
 }
 
