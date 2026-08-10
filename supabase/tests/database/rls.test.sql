@@ -21,7 +21,7 @@ where id between '10000000-0000-0000-0000-000000000001'::uuid
 
 \ir fixtures.inc
 
-select plan(40);
+select plan(43);
 
 select hasnt_column(
   'public',
@@ -190,6 +190,42 @@ select is(
   (select count(*) from public.activity_events where actor_id = '00000000-0000-0000-0000-000000000004'),
   5::bigint,
   'activity visibility inherits private profile access'
+);
+
+insert into public.ratings (
+  id, user_id, album_id, value, created_at, updated_at
+) values (
+  '52000000-0000-0000-0000-000000000002',
+  '00000000-0000-0000-0000-000000000001',
+  '50000000-0000-0000-0000-000000000001',
+  4.0,
+  '2026-08-10 00:00:00+00',
+  '2026-08-10 00:00:00+00'
+);
+
+select is(
+  (select listen_number from public.rating_listen_numbers
+    where rating_id = '52000000-0000-0000-0000-000000000002'),
+  2::bigint,
+  'repeat ratings expose their listen number'
+);
+
+select is(
+  (select rating_listen_number from public.get_home_feed(50)
+    where album_id = '50000000-0000-0000-0000-000000000001'
+      and rating_value = 4.0),
+  2::bigint,
+  'home feed exposes rating listen numbers'
+);
+
+delete from public.ratings
+where id = '52000000-0000-0000-0000-000000000001';
+
+select is(
+  (select listen_number from public.rating_listen_numbers
+    where rating_id = '52000000-0000-0000-0000-000000000002'),
+  1::bigint,
+  'listen numbers renumber after an earlier rating is deleted'
 );
 
 select lives_ok(
