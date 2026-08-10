@@ -27,6 +27,7 @@ export type SocialActivity = {
   liked_by_me: boolean;
   saved_by_me: boolean;
   my_rating_value: number | null;
+  rating_listen_number: number | null;
 };
 
 export type ProfileRating = Rating & { album: Album };
@@ -71,17 +72,29 @@ export function useAlbum(albumId?: string) {
   });
 }
 
-export function useAlbumActivity(albumId?: string) {
+export function useAlbumActivity(albumId?: string, pinnedRatingId?: string | null, enabled = true) {
   const { session } = useAuth();
   return useQuery({
-    queryKey: queryKeys.albumActivity(albumId ?? ''),
-    enabled: Boolean(albumId),
+    queryKey: [...queryKeys.albumActivity(albumId ?? ''), pinnedRatingId ?? null],
+    enabled: Boolean(albumId && session && enabled),
     queryFn: async () => {
-      const { data, error } = await supabase.from('activity_events')
-        .select('id, activity_type, album_id, created_at, actor:profiles!activity_events_actor_id_fkey(id, username, display_name, avatar_path), album:albums(*), rating:ratings(*), likes(count), comments(count)')
-        .eq('album_id', albumId!).order('created_at', { ascending: false }).limit(20);
-      if (error) throw error;
-      return enrichSocialActivities(data as unknown as SocialActivity[], session!.user.id);
+      const select = 'id, activity_type, album_id, created_at, actor:profiles!activity_events_actor_id_fkey(id, username, display_name, avatar_path), album:albums(*), rating:ratings(*), likes(count), comments(count)';
+      const feedPromise = supabase.from('activity_events')
+        .select(select)
+        .eq('album_id', albumId!)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(20);
+      const pinnedPromise = pinnedRatingId
+        ? supabase.from('activity_events').select(select).eq('rating_id', pinnedRatingId).maybeSingle()
+        : Promise.resolve({ data: null, error: null });
+      const [feedResult, pinnedResult] = await Promise.all([feedPromise, pinnedPromise]);
+      if (feedResult.error) throw feedResult.error;
+      if (pinnedResult.error) throw pinnedResult.error;
+      const items = feedResult.data as unknown as SocialActivity[];
+      const pinnedItem = pinnedResult.data as unknown as SocialActivity | null;
+      if (pinnedItem && !items.some((item) => item.id === pinnedItem.id)) items.push(pinnedItem);
+      return enrichSocialActivities(items, session!.user.id);
     },
   });
 }
@@ -115,22 +128,35 @@ export function useProfileFeed(profileId?: string, enabled = true) {
 async function enrichSocialActivities(items: SocialActivity[], userId: string) {
   if (!items.length) return items;
   const albumIds = [...new Set(items.map((item) => item.album_id))];
-  const [likesResult, savesResult, ratingsResult] = await Promise.all([
+  const ratingIds = items.flatMap((item) => item.rating ? [item.rating.id] : []);
+  const listenNumbersPromise = ratingIds.length
+    ? supabase.from('rating_listen_numbers').select('rating_id, listen_number').in('rating_id', ratingIds)
+    : Promise.resolve({ data: [], error: null });
+  const [likesResult, savesResult, ratingsResult, listenNumbersResult] = await Promise.all([
     supabase.from('likes').select('activity_event_id').eq('user_id', userId).in('activity_event_id', items.map((item) => item.id)),
     supabase.from('listen_later_items').select('album_id').eq('user_id', userId).in('album_id', albumIds),
     supabase.from('ratings').select('album_id, value, created_at, id').eq('user_id', userId).in('album_id', albumIds)
       .order('created_at', { ascending: false }).order('id', { ascending: false }),
+    listenNumbersPromise,
   ]);
   if (likesResult.error) throw likesResult.error;
   if (savesResult.error) throw savesResult.error;
   if (ratingsResult.error) throw ratingsResult.error;
+  if (listenNumbersResult.error) throw listenNumbersResult.error;
   const liked = new Set(likesResult.data.map((item) => item.activity_event_id));
   const saved = new Set(savesResult.data.map((item) => item.album_id));
   const ratings = new Map<string, number>();
+  const listenNumbers = new Map(listenNumbersResult.data.map((item) => [item.rating_id, item.listen_number]));
   ratingsResult.data.forEach((item) => {
     if (!ratings.has(item.album_id)) ratings.set(item.album_id, item.value);
   });
-  return items.map((item) => ({ ...item, liked_by_me: liked.has(item.id), saved_by_me: saved.has(item.album_id), my_rating_value: ratings.get(item.album_id) ?? null }));
+  return items.map((item) => ({
+    ...item,
+    liked_by_me: liked.has(item.id),
+    saved_by_me: saved.has(item.album_id),
+    my_rating_value: ratings.get(item.album_id) ?? null,
+    rating_listen_number: item.rating ? listenNumbers.get(item.rating.id) ?? null : null,
+  }));
 }
 
 export function useProfileRatings(profileId?: string, enabled = true) {

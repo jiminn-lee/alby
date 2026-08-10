@@ -21,7 +21,7 @@ import { getMediaUrl } from '@/lib/media';
 export default function AlbumDetailScreen() {
   const { albumId } = useLocalSearchParams<{ albumId: string }>();
   const detail = useAlbum(albumId);
-  const activity = useAlbumActivity(albumId);
+  const activity = useAlbumActivity(albumId, detail.data?.myRating?.id, detail.isSuccess);
   const listenLater = useListenLaterMutation();
   const removeRating = useDeleteRatingMutation();
   const scrollRef = useRef<ScrollView>(null);
@@ -118,7 +118,7 @@ export default function AlbumDetailScreen() {
 
           <View style={styles.activityArea}>
             {activity.isLoading ? <ScreenState /> : activity.error ? <ScreenState error={activity.error.message} /> : activity.data?.length ? (
-              <ActivityFeed albumDetail items={activity.data} onDeleteRating={confirmDelete} />
+              <ActivityFeed albumDetail items={activity.data} onDeleteRating={confirmDelete} pinnedRatingId={myRating?.id} />
             ) : <Text style={styles.empty}>No visible activity yet.</Text>}
           </View>
         </View>

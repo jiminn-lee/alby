@@ -5,62 +5,158 @@ import { getMediaUrl } from '@/lib/media';
 import { useAuth } from '@/providers/auth-provider';
 import type { HomeFeedItem } from '@/types/domain';
 
-import { FeedActivity, type FeedActivityData } from './feed-activity';
+import {
+  RatingPost,
+  SavedPost,
+  type PostActionsData,
+  type RatingPostData,
+  type SavedPostData,
+} from './feed-activity';
 
 export function HomeFeed({ items }: { items: HomeFeedItem[] }) {
-  const like = useLikeMutation(); const listenLater = useListenLaterMutation();
+  const like = useLikeMutation();
+  const listenLater = useListenLaterMutation();
+  const { session } = useAuth();
+
   return <>{items.map((item) => {
-    const data: FeedActivityData = {
-      action: actionLabel(item.activity_type, item.rating_value), album: item.album_title, artist: item.artist_name,
-      avatar: getMediaUrl(item.actor_avatar_path) ?? undefined, comments: item.comments_count, cover: getMediaUrl(item.cover_path) ?? '',
-      coverSize: item.activity_type === 'listen_later_added' ? 64 : 96,
-      initial: (item.actor_display_name || item.actor_username || '?')[0].toUpperCase(), initiallyLiked: item.liked_by_me,
-      initiallySaved: item.saved_by_me, likes: item.likes_count, note: item.rating_note ?? undefined,
-      linkAlbumTitle: true,
-      rateActionLabel: item.my_rating_value == null ? 'Rate it' : 'Rate again', rating: item.rating_value ?? undefined,
-      ratingTone: tone(item.rating_value), secondaryAction: item.my_rating_value == null ? item.saved_by_me ? 'Saved' : 'Listen later' : undefined, time: relativeTime(item.created_at),
-      user: item.actor_id ? (item.actor_display_name || item.actor_username || 'Alby user') : 'Alby user',
-      onLike: (liked) => like.mutate({ activityId: item.id, liked: !liked }),
-      onSave: item.my_rating_value == null ? (saved) => listenLater.mutate({ albumId: item.album_id, saved: !saved }) : undefined,
-      onOpenAlbum: () => router.push({ pathname: '/albums/[albumId]', params: { albumId: item.album_id } }),
-      onRate: () => router.push({ pathname: '/albums/[albumId]/rate', params: { albumId: item.album_id } }),
+    const isOwnActivity = item.actor_id === session?.user.id;
+    const onOpenAlbum = () => router.push({ pathname: '/albums/[albumId]', params: { albumId: item.album_id } });
+    const onRate = () => router.push({ pathname: '/albums/[albumId]/rate', params: { albumId: item.album_id } });
+    const actions: PostActionsData = {
+      onRate,
+      rateLabel: item.my_rating_value == null ? 'Rate it' : 'Rate again',
+      save: item.my_rating_value == null ? {
+        initiallySaved: item.saved_by_me,
+        onToggle: (saved) => listenLater.mutate({ albumId: item.album_id, saved: !saved }),
+      } : undefined,
     };
-    return <FeedActivity activity={data} key={item.id} />;
+    const common = {
+      action: actionLabel(item.activity_type, item.rating_value),
+      album: item.album_title,
+      artist: item.artist_name,
+      avatar: getMediaUrl(item.actor_avatar_path) ?? undefined,
+      comments: item.comments_count,
+      initial: (item.actor_display_name || item.actor_username || '?')[0].toUpperCase(),
+      initiallyLiked: item.liked_by_me,
+      likes: item.likes_count,
+      onLike: (liked: boolean) => like.mutate({ activityId: item.id, liked: !liked }),
+      onOpenAlbum,
+      time: relativeTime(item.created_at),
+      user: isOwnActivity ? 'You' : item.actor_display_name || item.actor_username || 'Alby user',
+    };
+
+    if (item.rating_value != null) {
+      const post: RatingPostData = {
+        ...common,
+        actions,
+        context: 'feed',
+        cover: getMediaUrl(item.cover_path) ?? '',
+        kind: 'rating',
+        listenNumber: item.rating_listen_number ?? undefined,
+        note: item.rating_note ?? undefined,
+        rating: item.rating_value,
+        ratingTone: tone(item.rating_value),
+      };
+      return <RatingPost key={item.id} post={post} />;
+    }
+
+    const post: SavedPostData = {
+      ...common,
+      actions,
+      context: 'feed',
+      cover: getMediaUrl(item.cover_path) ?? '',
+      kind: 'saved',
+    };
+    return <SavedPost key={item.id} post={post} />;
   })}</>;
 }
 
-export function ActivityFeed({ albumDetail = false, items, onDeleteRating }: {
+export function ActivityFeed({ albumDetail = false, items, onDeleteRating, pinnedRatingId }: {
   albumDetail?: boolean;
   items: SocialActivity[];
   onDeleteRating?: (ratingId: string) => void;
+  pinnedRatingId?: string;
 }) {
-  const like = useLikeMutation(); const listenLater = useListenLaterMutation();
+  const like = useLikeMutation();
+  const listenLater = useListenLaterMutation();
   const { session } = useAuth();
-  const orderedItems = albumDetail ? [...items].sort((a, b) => {
-    const aOwn = a.actor.id === session?.user.id ? 1 : 0;
-    const bOwn = b.actor.id === session?.user.id ? 1 : 0;
-    return bOwn - aOwn || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  }) : items;
+  const chronologicalItems = albumDetail ? [...items].sort((a, b) => (
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || b.id.localeCompare(a.id)
+  )) : items;
+  const pinnedItem = albumDetail && pinnedRatingId ? chronologicalItems.find((item) => (
+    item.actor.id === session?.user.id && item.rating?.id === pinnedRatingId
+  )) : undefined;
+  const orderedItems = pinnedItem
+    ? [pinnedItem, ...chronologicalItems.filter((item) => item.id !== pinnedItem.id)]
+    : chronologicalItems;
+
   return <>{orderedItems.map((item) => {
-    const isOwnRating = item.actor.id === session?.user.id && Boolean(item.rating);
-    return <FeedActivity key={item.id} activity={{
-    action: actionLabel(item.activity_type, item.rating?.value), album: item.album.title, artist: item.album.artist_name,
-    avatar: getMediaUrl(item.actor.avatar_path) ?? undefined, comments: item.comments[0]?.count ?? 0,
-    cover: getMediaUrl(item.album.cover_path) ?? '', initial: (item.actor.display_name || item.actor.username || '?')[0].toUpperCase(),
-    coverSize: item.activity_type === 'listen_later_added' ? 64 : 96,
-    initiallyLiked: item.liked_by_me, initiallySaved: item.saved_by_me,
-    linkAlbumTitle: !albumDetail,
-    likes: item.likes[0]?.count ?? 0, note: item.rating?.note ?? undefined, rateActionLabel: item.my_rating_value == null ? 'Rate it' : 'Rate again',
-    hideCover: albumDetail, rating: item.rating?.value, ratingTone: tone(item.rating?.value),
-    hideActions: albumDetail,
-    secondaryAction: item.my_rating_value == null ? item.saved_by_me ? 'Saved' : 'Listen later' : undefined,
-    time: relativeTime(item.created_at), user: item.actor.display_name || item.actor.username || 'Alby user',
-    onLike: (liked) => like.mutate({ activityId: item.id, liked: !liked }),
-    onSave: item.my_rating_value == null ? (saved) => listenLater.mutate({ albumId: item.album_id, saved: !saved }) : undefined,
-    onOpenAlbum: albumDetail ? undefined : () => router.push({ pathname: '/albums/[albumId]', params: { albumId: item.album_id } }),
-    onMenu: isOwnRating && item.rating ? () => onDeleteRating?.(item.rating!.id) : undefined,
-    onRate: () => router.push({ pathname: '/albums/[albumId]/rate', params: { albumId: item.album_id } }),
-  }} />;
+    const isOwnActivity = item.actor.id === session?.user.id;
+    const isOwnRating = isOwnActivity && Boolean(item.rating);
+    const pinned = item.id === pinnedItem?.id;
+    const onOpenAlbum = albumDetail ? undefined : () => router.push({ pathname: '/albums/[albumId]', params: { albumId: item.album_id } });
+    const onRate = () => router.push({ pathname: '/albums/[albumId]/rate', params: { albumId: item.album_id } });
+    const feedActions: PostActionsData = {
+      onRate,
+      rateLabel: item.my_rating_value == null ? 'Rate it' : 'Rate again',
+      save: item.my_rating_value == null ? {
+        initiallySaved: item.saved_by_me,
+        onToggle: (saved) => listenLater.mutate({ albumId: item.album_id, saved: !saved }),
+      } : undefined,
+    };
+    const common = {
+      action: actionLabel(item.activity_type, item.rating?.value),
+      album: item.album.title,
+      artist: item.album.artist_name,
+      avatar: getMediaUrl(item.actor.avatar_path) ?? undefined,
+      comments: item.comments[0]?.count ?? 0,
+      initial: (item.actor.display_name || item.actor.username || '?')[0].toUpperCase(),
+      initiallyLiked: item.liked_by_me,
+      likes: item.likes[0]?.count ?? 0,
+      onLike: (liked: boolean) => like.mutate({ activityId: item.id, liked: !liked }),
+      onOpenAlbum,
+      time: relativeTime(item.created_at),
+      user: isOwnActivity ? 'You' : item.actor.display_name || item.actor.username || 'Alby user',
+    };
+
+    if (item.rating) {
+      const ratingData = {
+        ...common,
+        kind: 'rating' as const,
+        listenNumber: item.rating_listen_number ?? undefined,
+        note: item.rating.note ?? undefined,
+        onMenu: isOwnRating && onDeleteRating ? () => onDeleteRating(item.rating!.id) : undefined,
+        rating: item.rating.value,
+        ratingTone: tone(item.rating.value),
+      };
+      const post: RatingPostData = albumDetail ? {
+        ...ratingData,
+        actions: isOwnRating && !pinned ? { onRate, rateLabel: 'Rate again' } : undefined,
+        context: 'album',
+        pinned,
+      } : {
+        ...ratingData,
+        actions: feedActions,
+        context: 'feed',
+        cover: getMediaUrl(item.album.cover_path) ?? '',
+      };
+      return <RatingPost key={item.id} post={post} />;
+    }
+
+    const savedData = {
+      ...common,
+      kind: 'saved' as const,
+    };
+    const post: SavedPostData = albumDetail ? {
+      ...savedData,
+      context: 'album',
+    } : {
+      ...savedData,
+      actions: feedActions,
+      context: 'feed',
+      cover: getMediaUrl(item.album.cover_path) ?? '',
+    };
+    return <SavedPost key={item.id} post={post} />;
   })}</>;
 }
 

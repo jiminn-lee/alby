@@ -393,6 +393,13 @@ export type Database = {
         }
         Relationships: []
       }
+      rating_listen_numbers: {
+        Row: {
+          listen_number: number | null
+          rating_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_view_profile_content: {
@@ -426,6 +433,7 @@ export type Database = {
           liked_by_me: boolean
           likes_count: number
           my_rating_value: number
+          rating_listen_number: number
           rating_note: string
           rating_value: number
           saved_by_me: boolean

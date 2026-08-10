@@ -25,6 +25,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   scrollView: { flex: 1, backgroundColor: Palette.canvas }, scrollContent: { alignItems: 'center' },
   content: { width: '100%', maxWidth: MaxContentWidth, paddingHorizontal: 24 },
-  header: { width: '100%', height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { width: '100%', height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   notificationButton: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' }, pressed: { opacity: PressedOpacity },
 });
