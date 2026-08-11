@@ -1,7 +1,7 @@
 begin;
 set local role postgres;
 set local search_path = public, extensions, auth, storage;
-select plan(8);
+select plan(9);
 select hasnt_column('public', 'albums', 'genres', 'staging albums do not expose genres');
 select has_column('public', 'albums', 'release_type', 'staging albums expose release types');
 select is(
@@ -13,23 +13,35 @@ select is(
 select is(
   (select count(*) from auth.users
     where id between '00000000-0000-0000-0000-000000000001'::uuid
-      and '00000000-0000-0000-0000-000000000006'::uuid),
-  6::bigint,
-  'staging preserves all six mock users alongside OAuth users'
+      and '00000000-0000-0000-0000-000000000006'::uuid
+      or email in (
+        'jimin@alby.local', 'cody@alby.local', 'aaron@alby.local',
+        'maya@alby.local', 'lena@alby.local', 'devon@alby.local'
+      )),
+  0::bigint,
+  'staging has no tracked mock users'
 );
 select is(
   (select count(*) from public.profiles
     where id between '00000000-0000-0000-0000-000000000001'::uuid
       and '00000000-0000-0000-0000-000000000006'::uuid),
-  6::bigint,
-  'staging preserves all six mock profiles alongside OAuth profiles'
+  0::bigint,
+  'staging has no tracked mock profiles'
 );
 select is(
   (select count(*) from public.albums
     where id between '10000000-0000-0000-0000-000000000001'::uuid
       and '10000000-0000-0000-0000-000000000012'::uuid),
-  12::bigint,
-  'staging preserves all twelve mock albums'
+  0::bigint,
+  'staging has no tracked mock albums'
+);
+select is(
+  (select count(*)
+    from auth.identities identity
+    left join public.profiles profile on profile.id = identity.user_id
+    where identity.provider = 'google' and profile.id is null),
+  0::bigint,
+  'every staging Google identity has a profile'
 );
 select is((select count(*) from storage.buckets where id = 'media'), 1::bigint, 'staging has the media bucket');
 select is(
@@ -42,8 +54,8 @@ select is(
         'albums/album-i-barely-know-her.png',
         'avatars/jimin.png'
       )),
-  5::bigint,
-  'staging preserves all five mock media files alongside user uploads'
+  0::bigint,
+  'staging has no tracked mock media files'
 );
 select * from finish();
 rollback;

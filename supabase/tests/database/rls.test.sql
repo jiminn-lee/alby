@@ -8,7 +8,7 @@ set local search_path = public, extensions, auth, storage;
 
 create extension if not exists pgtap with schema extensions;
 
--- Rebuild the tracked mock fixtures inside this transaction. Existing staging
+-- Build OAuth-shaped fixtures only inside this transaction. Existing staging
 -- rows are restored by the final rollback, so tests do not depend on mutable
 -- shared staging state and leave no changes behind.
 delete from auth.users

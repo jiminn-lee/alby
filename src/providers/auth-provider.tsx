@@ -5,7 +5,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { Platform } from 'react-native';
 
 import { queryClient } from '@/lib/query-client';
-import { appScheme, isStaging } from '@/lib/app-env';
+import { appScheme } from '@/lib/app-env';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types/domain';
 
@@ -19,7 +19,6 @@ type AuthContextValue = {
   refreshProfile: () => Promise<void>;
   retryAuth: () => Promise<void>;
   session: Session | null;
-  signInDemo: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -170,14 +169,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await synchronizeSession(sessionData.session, true);
   }, [synchronizeSession]);
 
-  const signInDemo = useCallback(async () => {
-    if (!isStaging) throw new Error('The mock account is available only in staging.');
-    const { data, error } = await supabase.auth.signInWithPassword({ email: 'jimin@alby.local', password: 'password' });
-    if (error) throw error;
-    if (!data.session) throw new Error('The staging account did not create a session.');
-    await synchronizeSession(data.session, true);
-  }, [synchronizeSession]);
-
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -192,10 +183,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     refreshProfile,
     retryAuth,
     session,
-    signInDemo,
     signInWithGoogle,
     signOut,
-  }), [authError, isLoading, profile, refreshProfile, retryAuth, session, signInDemo, signInWithGoogle, signOut]);
+  }), [authError, isLoading, profile, refreshProfile, retryAuth, session, signInWithGoogle, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

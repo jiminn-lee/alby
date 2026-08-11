@@ -57,7 +57,7 @@
     "db:dry-run:production": "node scripts/supabase-target.mjs dry-run production",
     "db:push:staging": "node scripts/supabase-target.mjs push staging",
     "db:push:production": "node scripts/supabase-target.mjs push production",
-    "db:seed:staging": "node scripts/supabase-target.mjs seed staging",
+    "db:purge-fixtures:staging": "node scripts/supabase-target.mjs purge-fixtures staging",
     "db:config:staging": "node scripts/supabase-target.mjs config staging",
     "db:config:production": "node scripts/supabase-target.mjs config production",
     "db:verify:staging": "node scripts/supabase-target.mjs verify staging",
@@ -70,8 +70,7 @@
     "spotify:deploy:staging": "node scripts/supabase-target.mjs spotify-deploy staging",
     "spotify:deploy:production": "node scripts/supabase-target.mjs spotify-deploy production",
     "spotify:functions:staging": "node scripts/supabase-target.mjs spotify-list staging",
-    "spotify:functions:production": "node scripts/supabase-target.mjs spotify-list production",
-    "spotify:smoke:staging": "node --env-file=.env.local scripts/spotify-smoke.mjs --confirm=staging"
+    "spotify:functions:production": "node scripts/supabase-target.mjs spotify-list production"
   },
   "private": true
 }

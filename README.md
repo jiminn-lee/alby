@@ -12,7 +12,7 @@ Alby uses two Supabase Cloud projects and never requires a local Supabase stack:
 | Preview | `Alby Staging` / `com.alby.app.staging` / `alby-staging://` | staging |
 | Production | `Alby` / `com.alby.app` / `alby://` | production |
 
-The `supabase/` directory is the migration source of truth, and the guarded CLI commands below link directly to the hosted projects for migrations, tests, type generation, configuration, and staging fixtures.
+The `supabase/` directory is the migration source of truth, and the guarded CLI commands below link directly to the hosted projects for migrations, tests, type generation, configuration, and fixture cleanup.
 
 ## App development
 
@@ -30,19 +30,18 @@ The `supabase/` directory is the migration source of truth, and the guarded CLI 
    npm start
    ```
 
-The staging sign-in screen includes the seeded `jimin@alby.local` mock account alongside Google sign-in. The mock account is not rendered in production. Google OAuth is currently mobile-only and requires a development or EAS build so the app's custom callback scheme is available. Native Sign in with Apple is deferred until the Apple Developer account is active and must be completed before an iOS App Store release.
+Google OAuth is the only active sign-in path and is currently mobile-only. It requires a development or EAS build so the app's custom callback scheme is available. Staging has no persistent mock accounts or catalog fixtures: OAuth creates users, the database trigger creates profiles, and Spotify searches materialize albums. Native Sign in with Apple is deferred until the Apple Developer account is active and must be completed before an iOS App Store release.
 
 ## Database deployment
 
 The guarded commands compare the currently linked Supabase project with `supabase/targets.json`. Remote writes additionally require an explicit confirmation argument.
 
 ```bash
-# Staging: link, review, deploy, seed fixtures, and verify
+# Staging: link, review, deploy, and verify
 npm run db:link:staging
 npm run db:migrations:staging
 npm run db:dry-run:staging
 npm run db:push:staging -- --confirm=staging
-npm run db:seed:staging -- --confirm=staging
 npm run db:config:staging -- --confirm=staging
 npm run db:lint
 npm run db:test
@@ -61,9 +60,17 @@ npm run db:verify:production
 npm run db:link:staging
 ```
 
-Create new migrations with `npx supabase migration new <name>`, deploy them to staging first, and promote the identical files to production. Never add `--include-seed` or run Storage fixture uploads against production.
+To remove the retired staging fixtures once—or safely confirm they are already absent—run the idempotent purge and then verify staging:
 
-The pgTAP suite rebuilds its fixtures inside a transaction and rolls back, so running `npm run db:test` does not leave test data behind on shared staging. The test command also refuses to run if its fixture include has drifted from `seed.sql`. The verification commands assert the expected environment split: staging preserves the tracked mock users/albums/media alongside OAuth users, while production rejects those mock fixtures but allows legitimate production data.
+```bash
+npm run db:link:staging
+npm run db:purge-fixtures:staging -- --confirm=staging
+npm run db:verify:staging
+```
+
+Create new migrations with `npx supabase migration new <name>`, deploy them to staging first, and promote the identical files to production. The persistent seed is intentionally empty, and the fixture purge command refuses to target production.
+
+The pgTAP suite builds synthetic Google identities and social data inside a transaction and rolls back, so running `npm run db:test` does not leave test data behind on shared staging. Verification rejects the retired fixture users, albums, and media in both environments while allowing legitimate OAuth users and Spotify-created catalog data.
 
 ## Spotify album search
 
@@ -87,7 +94,6 @@ npm run db:link:staging
 npm run spotify:secrets:staging -- --confirm=staging
 npm run spotify:deploy:staging -- --confirm=staging
 npm run spotify:functions:staging
-npm run spotify:smoke:staging
 
 npm run db:link:production
 npm run spotify:secrets:production -- --confirm=production
@@ -97,7 +103,7 @@ npm run spotify:functions:production
 npm run db:link:staging
 ```
 
-The staging smoke test signs into the fixed mock account and writes catalog rows, so it is guarded and must never target production. Production function deployment does not invoke materialization.
+The automated Spotify tests cover request validation and catalog mapping without credentials. Authenticated remote search and materialization are exercised through the mobile app; there is no password-based smoke account.
 
 ## APIs and secrets
 

@@ -8,10 +8,16 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const targetsPath = path.join(projectRoot, 'supabase', 'targets.json');
 const linkedRefPath = path.join(projectRoot, 'supabase', '.temp', 'project-ref');
 const generatedTypesPath = path.join(projectRoot, 'src', 'types', 'database.ts');
-const seedPath = path.join(projectRoot, 'supabase', 'seed.sql');
-const testFixturesPath = path.join(projectRoot, 'supabase', 'tests', 'database', 'fixtures.inc');
+const stagingFixtureCleanupPath = path.join(projectRoot, 'supabase', 'cleanup', 'staging-fixtures.sql');
 const supabaseConfigPath = path.join(projectRoot, 'supabase', 'config.toml');
 const spotifySecretPath = (targetName) => path.join(projectRoot, 'supabase', `.env.spotify.${targetName}.local`);
+const stagingFixtureStoragePaths = [
+  'ss:///media/albums/album-brat.png',
+  'ss:///media/albums/album-i-barely-know-her.png',
+  'ss:///media/albums/album-rest-in-bass.png',
+  'ss:///media/albums/album-to-pimp-a-butterfly.png',
+  'ss:///media/avatars/jimin.png',
+];
 
 const [action, target, ...options] = process.argv.slice(2);
 const allowedTargets = new Set(['staging', 'production']);
@@ -85,13 +91,25 @@ switch (action) {
     requireConfirmation(target);
     runSupabase(['db', 'push', '--linked']);
     break;
-  case 'seed':
-    if (target !== 'staging') fail('Mock database and Storage fixtures may only be seeded to staging.');
+  case 'purge-fixtures': {
+    if (target !== 'staging') fail('Tracked fixtures may only be purged from staging.');
     requireLinkedTarget(target);
     requireConfirmation(target);
-    runSupabase(['db', 'push', '--linked', '--include-seed']);
-    runSupabase(['seed', 'buckets', '--linked']);
+    runSupabase(['db', 'query', '--linked', '--file', stagingFixtureCleanupPath]);
+
+    const storageObjects = runSupabase(
+      ['--experimental', 'storage', 'ls', '--recursive', '--linked', 'ss:///media'],
+      true,
+    );
+    const existingFixturePaths = stagingFixtureStoragePaths.filter((storagePath) => (
+      storageObjects.split('\n').includes(storagePath.replace('ss://', ''))
+    ));
+    if (existingFixturePaths.length > 0) {
+      runSupabase(['--experimental', '--yes', 'storage', 'rm', '--linked', ...existingFixturePaths]);
+    }
+    console.log(`Removed ${existingFixturePaths.length} tracked fixture Storage object(s).`);
     break;
+  }
   case 'config': {
     requireLinkedTarget(target);
     requireConfirmation(target);
@@ -121,9 +139,6 @@ switch (action) {
   case 'test':
     if (target !== 'staging') fail('Database tests run only against staging.');
     requireLinkedTarget(target);
-    if (readFileSync(seedPath, 'utf8') !== readFileSync(testFixturesPath, 'utf8')) {
-      fail('supabase/tests/database/fixtures.inc is out of sync with supabase/seed.sql.');
-    }
     runSupabase(['test', 'db', '--linked', 'supabase/tests/database/rls.test.sql']);
     break;
   case 'verify':
@@ -163,5 +178,5 @@ switch (action) {
     runSupabase(['functions', 'list', '--project-ref', projectRefFor(target)]);
     break;
   default:
-    fail('Usage: node scripts/supabase-target.mjs <link|migrations|dry-run|push|seed|config|test|verify|lint|types|spotify-secrets|spotify-deploy|spotify-list> <staging|production>');
+    fail('Usage: node scripts/supabase-target.mjs <link|migrations|dry-run|push|purge-fixtures|config|test|verify|lint|types|spotify-secrets|spotify-deploy|spotify-list> <staging|production>');
 }
