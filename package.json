@@ -58,6 +58,7 @@
     "db:push:staging": "node scripts/supabase-target.mjs push staging",
     "db:push:production": "node scripts/supabase-target.mjs push production",
     "db:purge-fixtures:staging": "node scripts/supabase-target.mjs purge-fixtures staging",
+    "db:seed-fixtures:staging": "node scripts/supabase-target.mjs seed-fixtures staging",
     "db:config:staging": "node scripts/supabase-target.mjs config staging",
     "db:config:production": "node scripts/supabase-target.mjs config production",
     "db:verify:staging": "node scripts/supabase-target.mjs verify staging",

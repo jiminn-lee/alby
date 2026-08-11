@@ -41,12 +41,12 @@ set username = seed.username,
     created_at = seed.created_at,
     updated_at = seed.created_at
 from (values
-  ('00000000-0000-0000-0000-000000000001'::uuid, 'jimin', 'Jimin Lee', 'avatars/jimin.png', 'Finding the records worth replaying.', false, '2025-01-05 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000002'::uuid, 'cody', 'Cody Fowler', null, 'Jazz, hip-hop, and impossible-to-ignore drums.', false, '2025-01-10 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000003'::uuid, 'aaron', 'Aaron Bell', null, 'Saving everything for the weekend queue.', false, '2025-02-14 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000004'::uuid, 'maya', 'Maya Chen', null, 'Notes for friends, not the algorithm.', true, '2025-03-02 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000005'::uuid, 'lena', 'Lena Ortiz', null, 'Pop maximalist. Ballad apologist.', false, '2025-04-19 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000006'::uuid, 'devon', 'Devon Price', null, 'One good album at a time.', false, '2025-05-23 16:00:00+00'::timestamptz)
+  ('00000000-0000-0000-0000-000000000001'::uuid, 'test_jimin', 'Jimin Lee', 'avatars/jimin.png', 'Finding the records worth replaying.', false, '2025-01-05 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000002'::uuid, 'test_cody', 'Cody Fowler', null, 'Jazz, hip-hop, and impossible-to-ignore drums.', false, '2025-01-10 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000003'::uuid, 'test_aaron', 'Aaron Bell', null, 'Saving everything for the weekend queue.', false, '2025-02-14 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000004'::uuid, 'test_maya', 'Maya Chen', null, 'Notes for friends, not the algorithm.', true, '2025-03-02 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000005'::uuid, 'test_lena', 'Lena Ortiz', null, 'Pop maximalist. Ballad apologist.', false, '2025-04-19 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000006'::uuid, 'test_devon', 'Devon Price', null, 'One good album at a time.', false, '2025-05-23 16:00:00+00'::timestamptz)
 ) as seed(id, username, display_name, avatar_path, bio, is_private, created_at)
 where profile.id = seed.id;
 

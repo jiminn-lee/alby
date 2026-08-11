@@ -358,7 +358,7 @@ select is(
 );
 
 select is(
-  (select count(*) from public.profiles where username = 'maya'),
+  (select count(*) from public.profiles where username = 'test_maya'),
   1::bigint,
   'private basic identity remains discoverable'
 );

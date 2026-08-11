@@ -13,16 +13,31 @@ select is(
 select is(
   (select count(*) from auth.users
     where id between '00000000-0000-0000-0000-000000000001'::uuid
-      and '00000000-0000-0000-0000-000000000006'::uuid),
+        and '00000000-0000-0000-0000-000000000006'::uuid
+      or id between 'f17e0000-0000-4000-8000-000000000001'::uuid
+        and 'f17e0000-0000-4000-8000-000000000003'::uuid
+      or email in (
+        'jimin@alby.local',
+        'cody@alby.local',
+        'aaron@alby.local',
+        'maya@alby.local',
+        'lena@alby.local',
+        'devon@alby.local',
+        'sample-cody@fixtures.alby.test',
+        'sample-maya@fixtures.alby.test',
+        'sample-lena@fixtures.alby.test'
+      )),
   0::bigint,
-  'production has no mock users'
+  'production has no tracked fixture principals'
 );
 select is(
   (select count(*) from public.profiles
     where id between '00000000-0000-0000-0000-000000000001'::uuid
-      and '00000000-0000-0000-0000-000000000006'::uuid),
+        and '00000000-0000-0000-0000-000000000006'::uuid
+      or id between 'f17e0000-0000-4000-8000-000000000001'::uuid
+        and 'f17e0000-0000-4000-8000-000000000003'::uuid),
   0::bigint,
-  'production has no mock profiles'
+  'production has no tracked fixture profiles'
 );
 select is(
   (select count(*) from public.albums

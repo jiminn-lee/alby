@@ -9,6 +9,7 @@ const targetsPath = path.join(projectRoot, 'supabase', 'targets.json');
 const linkedRefPath = path.join(projectRoot, 'supabase', '.temp', 'project-ref');
 const generatedTypesPath = path.join(projectRoot, 'src', 'types', 'database.ts');
 const stagingFixtureCleanupPath = path.join(projectRoot, 'supabase', 'cleanup', 'staging-fixtures.sql');
+const stagingFixtureSeedPath = path.join(projectRoot, 'supabase', 'fixtures', 'staging-social.sql');
 const supabaseConfigPath = path.join(projectRoot, 'supabase', 'config.toml');
 const spotifySecretPath = (targetName) => path.join(projectRoot, 'supabase', `.env.spotify.${targetName}.local`);
 const stagingFixtureStoragePaths = [
@@ -110,6 +111,12 @@ switch (action) {
     console.log(`Removed ${existingFixturePaths.length} tracked fixture Storage object(s).`);
     break;
   }
+  case 'seed-fixtures':
+    if (target !== 'staging') fail('Tracked fixtures may only be seeded in staging.');
+    requireLinkedTarget(target);
+    requireConfirmation(target);
+    runSupabase(['db', 'query', '--linked', '--file', stagingFixtureSeedPath]);
+    break;
   case 'config': {
     requireLinkedTarget(target);
     requireConfirmation(target);
@@ -178,5 +185,5 @@ switch (action) {
     runSupabase(['functions', 'list', '--project-ref', projectRefFor(target)]);
     break;
   default:
-    fail('Usage: node scripts/supabase-target.mjs <link|migrations|dry-run|push|purge-fixtures|config|test|verify|lint|types|spotify-secrets|spotify-deploy|spotify-list> <staging|production>');
+    fail('Usage: node scripts/supabase-target.mjs <link|migrations|dry-run|push|purge-fixtures|seed-fixtures|config|test|verify|lint|types|spotify-secrets|spotify-deploy|spotify-list> <staging|production>');
 }

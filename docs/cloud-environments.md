@@ -4,7 +4,7 @@
 
 | Target | Supabase project | Persistent data | App callbacks |
 | --- | --- | --- | --- |
-| Staging | `alby-staging` | Legitimate OAuth users and Spotify-created catalog data; tracked mocks are forbidden | `alby-dev://auth/callback`, `alby-staging://auth/callback` |
+| Staging | `alby-staging` | Legitimate OAuth users, Spotify-created catalog data, and the explicit non-loginable social fixture set | `alby-dev://auth/callback`, `alby-staging://auth/callback` |
 | Production | `alby-production` | Legitimate production data only; tracked mocks are forbidden | `alby://auth/callback` |
 
 Development and preview EAS environments use staging. The production EAS environment uses production. `app.config.ts` rejects a build when its app identity, `EXPO_PUBLIC_APP_ENV`, and Supabase project host do not agree.
@@ -13,11 +13,13 @@ Supabase Auth owns Alby sessions. Google enters through Supabase's hosted OAuth 
 
 Google is the active provider for this milestone on native iOS and Android. Web OAuth is not enabled. Native Sign in with Apple is deferred until Apple Developer access is available and remains a release requirement before the iOS app is submitted.
 
-## OAuth-only data baseline
+## OAuth-first data baseline
 
 Persistent environments do not receive fixture accounts, albums, activity, or media from `seed.sql`. Google creates Auth users, `public.handle_new_user()` creates their profiles from provider metadata, and users complete a unique username in the app. Album rows are created only when an authenticated user selects a Spotify result.
 
-Database tests remain deterministic by creating synthetic Google identities and social rows inside a transaction that always rolls back. The guarded `db:purge-fixtures:staging` command exists only to remove the retired fixed fixtures: it validates the linked staging project, requires `--confirm=staging`, refuses to run when legitimate OAuth data touches mock content, and cannot target production.
+For development, `db:seed-fixtures:staging` adds three reserved public personas to the already-materialized Spotify catalog. These Auth principals have `.test` emails, no password, and no identity row; they provide ratings, saves, feed activity, likes, comments, and mutual follows without restoring a demo login. The seed also makes every completed Google profile follow all three personas. It is transactional and idempotent, validates the linked staging project, requires `--confirm=staging`, and cannot target production. Rerun it after completing a new staging OAuth profile so that account receives the fixture follows.
+
+Database tests remain deterministic by creating synthetic Google identities and social rows inside a transaction that always rolls back. The guarded `db:purge-fixtures:staging` command removes both the social personas and retired fixed fixtures while preserving the shared Spotify catalog and legitimate OAuth data. It permits expected OAuth-to-fixture follows but aborts if a legitimate user authored a like or comment on fixture activity. Production verification explicitly rejects every reserved fixture principal.
 
 ## Spotify catalog credentials and deployment
 

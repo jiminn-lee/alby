@@ -33,7 +33,7 @@ The `supabase/` directory is the migration source of truth, and the guarded CLI 
 
 4. For later JavaScript-only sessions, start Metro for the installed development client with `npm start`.
 
-Google OAuth is the only active sign-in path and is currently mobile-only. It requires a development or EAS build so the app's custom callback scheme is registered by the native app. `npm run start:expo-go` remains available for UI-only work, but Google sign-in deliberately reports that Expo Go is unsupported. Staging has no persistent mock accounts or catalog fixtures: OAuth creates users, the database trigger creates profiles, and Spotify searches materialize albums. Native Sign in with Apple is deferred until the Apple Developer account is active and must be completed before an iOS App Store release.
+Google OAuth is the only active sign-in path and is currently mobile-only. It requires a development or EAS build so the app's custom callback scheme is registered by the native app. `npm run start:expo-go` remains available for UI-only work, but Google sign-in deliberately reports that Expo Go is unsupported. OAuth creates real users, the database trigger creates their profiles, and Spotify searches materialize albums. Staging can additionally host three non-loginable social personas through the explicit fixture command below; they are never installed by the persistent seed or in production. Native Sign in with Apple is deferred until the Apple Developer account is active and must be completed before an iOS App Store release.
 
 ## Database deployment
 
@@ -63,17 +63,28 @@ npm run db:verify:production
 npm run db:link:staging
 ```
 
-To remove the retired staging fixtures once—or safely confirm they are already absent—run the idempotent purge and then verify staging:
+To install the staging-only social dataset, first materialize the six tracked Spotify albums, then run the guarded idempotent seed and verification:
+
+```bash
+npm run db:link:staging
+npm run db:seed-fixtures:staging -- --confirm=staging
+npm run db:verify:staging
+```
+
+The seed creates Cody, Maya, and Lena as public sample personas with ratings, saves, follows, likes, and comments. Their reserved `.test` Auth principals have no password and no identity, so they cannot sign in. Every completed Google profile follows the three personas; rerun the seed after completing another staging OAuth profile to populate its home feed.
+
+To reset the fixture-owned social data without touching OAuth users or the shared catalog, purge it, reseed it, and then verify staging:
 
 ```bash
 npm run db:link:staging
 npm run db:purge-fixtures:staging -- --confirm=staging
+npm run db:seed-fixtures:staging -- --confirm=staging
 npm run db:verify:staging
 ```
 
-Create new migrations with `npx supabase migration new <name>`, deploy them to staging first, and promote the identical files to production. The persistent seed is intentionally empty, and the fixture purge command refuses to target production.
+Create new migrations with `npx supabase migration new <name>`, deploy them to staging first, and promote the identical files to production. The persistent seed is intentionally empty. Both social fixture commands validate the linked staging project, require `--confirm=staging`, and refuse to target production. Purge preserves the shared Spotify catalog and legitimate OAuth data, and aborts if a legitimate user has authored a like or comment on fixture activity.
 
-The pgTAP suite builds synthetic Google identities and social data inside a transaction and rolls back, so running `npm run db:test` does not leave test data behind on shared staging. Verification rejects the retired fixture users, albums, and media in both environments while allowing legitimate OAuth users and Spotify-created catalog data.
+The pgTAP suite builds synthetic Google identities and social data inside a transaction and rolls back, so running `npm run db:test` does not leave test data behind on shared staging. Staging verification requires the exact social fixture dataset while allowing legitimate OAuth users and additional Spotify-created catalog data. Production verification rejects both retired and current fixture principals, albums, and media.
 
 ## Spotify album search
 
