@@ -1,6 +1,7 @@
 import { makeRedirectUri } from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
+import { isRunningInExpoGo } from 'expo';
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
@@ -143,6 +144,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signInWithGoogle = useCallback(async () => {
     if (Platform.OS === 'web') throw new Error('Google sign-in is currently available only in the Alby mobile app.');
+    if (isRunningInExpoGo()) {
+      throw new Error('Google sign-in requires an Alby development build. Run npm run ios or npm run android.');
+    }
 
     const redirectTo = makeRedirectUri({ scheme: appScheme, path: 'auth/callback' });
     const { data, error } = await supabase.auth.signInWithOAuth({

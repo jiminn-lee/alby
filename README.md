@@ -24,13 +24,16 @@ The `supabase/` directory is the migration source of truth, and the guarded CLI 
 
 2. Create `.env.local` from `.env.example` and insert the staging Project URL and publishable key. Only publishable keys may use the `EXPO_PUBLIC_` prefix.
 
-3. Start the development client:
+3. Build and install the development client the first time, or whenever native configuration changes:
 
    ```bash
-   npm start
+   npm run ios
+   # or: npm run android
    ```
 
-Google OAuth is the only active sign-in path and is currently mobile-only. It requires a development or EAS build so the app's custom callback scheme is available. Staging has no persistent mock accounts or catalog fixtures: OAuth creates users, the database trigger creates profiles, and Spotify searches materialize albums. Native Sign in with Apple is deferred until the Apple Developer account is active and must be completed before an iOS App Store release.
+4. For later JavaScript-only sessions, start Metro for the installed development client with `npm start`.
+
+Google OAuth is the only active sign-in path and is currently mobile-only. It requires a development or EAS build so the app's custom callback scheme is registered by the native app. `npm run start:expo-go` remains available for UI-only work, but Google sign-in deliberately reports that Expo Go is unsupported. Staging has no persistent mock accounts or catalog fixtures: OAuth creates users, the database trigger creates profiles, and Spotify searches materialize albums. Native Sign in with Apple is deferred until the Apple Developer account is active and must be completed before an iOS App Store release.
 
 ## Database deployment
 
