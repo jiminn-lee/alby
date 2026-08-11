@@ -9,10 +9,11 @@ import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { Palette } from '@/constants/theme';
+import { AlbyButton } from '@/components/ui';
+import { Fonts, Palette } from '@/constants/theme';
 import { queryClient } from '@/lib/query-client';
 import { AuthProvider, useAuth } from '@/providers/auth-provider';
 
@@ -51,9 +52,17 @@ export default function RootLayout() {
 }
 
 function ProtectedNavigator() {
-  const { isLoading, isProfileComplete, session } = useAuth();
+  const { authError, isLoading, isProfileComplete, retryAuth, session } = useAuth();
   if (isLoading) {
     return <View style={styles.loading}><ActivityIndicator color={Palette.brand} /></View>;
+  }
+  if (authError) {
+    return (
+      <View style={styles.recovery}>
+        <Text accessibilityRole="alert" style={styles.recoveryText}>{authError}</Text>
+        <AlbyButton label="Try again" onPress={() => void retryAuth()} />
+      </View>
+    );
   }
   return (
     <Stack screenOptions={{ contentStyle: { backgroundColor: Palette.canvas }, headerShown: false }}>
@@ -70,4 +79,8 @@ function ProtectedNavigator() {
   );
 }
 
-const styles = StyleSheet.create({ loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.canvas } });
+const styles = StyleSheet.create({
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.canvas },
+  recovery: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, backgroundColor: Palette.canvas },
+  recoveryText: { maxWidth: 360, color: Palette.liked, fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20, textAlign: 'center' },
+});

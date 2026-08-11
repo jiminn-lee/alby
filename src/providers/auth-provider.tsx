@@ -1,130 +1,195 @@
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { makeRedirectUri } from 'expo-auth-session';
-import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import type { Session } from '@supabase/supabase-js';
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { isRunningInExpoGo } from 'expo';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { queryClient } from '@/lib/query-client';
-import { appScheme, isStaging } from '@/lib/app-env';
+import { appScheme } from '@/lib/app-env';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types/domain';
 
 WebBrowser.maybeCompleteAuthSession();
 
 type AuthContextValue = {
+  authError: string | null;
   isLoading: boolean;
   isProfileComplete: boolean;
   profile: Profile | null;
   refreshProfile: () => Promise<void>;
+  retryAuth: () => Promise<void>;
   session: Session | null;
-  signInDemo: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function callbackParams(url: URL) {
+  const params = new URLSearchParams(url.search);
+  const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+  hashParams.forEach((value, key) => {
+    if (!params.has(key)) params.set(key, value);
+  });
+  return params;
+}
+
+function assertExpectedCallback(callbackUrl: URL, redirectTo: string) {
+  const expectedUrl = new URL(redirectTo);
+  if (
+    callbackUrl.protocol !== expectedUrl.protocol
+    || callbackUrl.host !== expectedUrl.host
+    || callbackUrl.pathname !== expectedUrl.pathname
+  ) {
+    throw new Error('Google returned to an unexpected callback URL.');
+  }
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
+  const [authError, setAuthError] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const currentUserIdRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  const retryVersionRef = useRef(0);
+  const syncVersionRef = useRef(0);
 
-  const loadProfile = useCallback(async (nextSession: Session | null) => {
-    if (!nextSession) {
+  const synchronizeSession = useCallback(async (nextSession: Session | null, showLoading = false) => {
+    if (!mountedRef.current) return;
+    const syncVersion = ++syncVersionRef.current;
+    const nextUserId = nextSession?.user.id ?? null;
+    const userChanged = currentUserIdRef.current !== nextUserId;
+
+    if (showLoading || userChanged) setIsLoading(true);
+    if (userChanged) {
+      queryClient.clear();
       setProfile(null);
+    }
+
+    currentUserIdRef.current = nextUserId;
+    setSession(nextSession);
+
+    if (!nextSession) {
+      if (mountedRef.current && syncVersion === syncVersionRef.current) {
+        setAuthError(null);
+        setIsLoading(false);
+      }
       return;
     }
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', nextSession.user.id).maybeSingle();
-    if (error) throw error;
-    setProfile(data);
-  }, []);
 
-  const refreshProfile = useCallback(async () => loadProfile(session), [loadProfile, session]);
-
-  useEffect(() => {
-    let mounted = true;
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      try {
-        await loadProfile(data.session);
-      } finally {
-        if (mounted) setIsLoading(false);
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', nextSession.user.id).maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('Your Alby profile could not be loaded.');
+      if (!mountedRef.current || syncVersion !== syncVersionRef.current) return;
+      setProfile(data);
+      setAuthError(null);
+    } catch (error) {
+      if (mountedRef.current && syncVersion === syncVersionRef.current) {
+        setAuthError(errorMessage(error, 'Alby could not load your account.'));
       }
-    });
-
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setTimeout(() => void loadProfile(nextSession).finally(() => setIsLoading(false)), 0);
-    });
-    return () => {
-      mounted = false;
-      data.subscription.unsubscribe();
-    };
-  }, [loadProfile]);
-
-  const signInWithApple = useCallback(async () => {
-    const rawNonce = Crypto.randomUUID();
-    const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
-    const state = Crypto.randomUUID();
-    const credential = await AppleAuthentication.signInAsync({
-      nonce: hashedNonce,
-      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
-      state,
-    });
-    if (!credential.identityToken) throw new Error('Apple did not return an identity token.');
-    if (credential.state !== state) throw new Error('Apple returned an invalid authentication state.');
-    const fullName = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean).join(' ');
-    const { data, error } = await supabase.auth.signInWithIdToken({
-      nonce: rawNonce, provider: 'apple', token: credential.identityToken,
-    });
-    if (error) throw error;
-    if (fullName && data.user) {
-      await supabase.auth.updateUser({ data: { full_name: fullName, name: fullName } });
-      await supabase.from('profiles').update({ display_name: fullName }).eq('id', data.user.id);
+      throw error;
+    } finally {
+      if (mountedRef.current && syncVersion === syncVersionRef.current) setIsLoading(false);
     }
   }, []);
 
+  const retryAuth = useCallback(async () => {
+    const retryVersion = ++retryVersionRef.current;
+    setAuthError(null);
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (!mountedRef.current || retryVersion !== retryVersionRef.current) return;
+      await synchronizeSession(data.session, true);
+    } catch (error) {
+      if (mountedRef.current && retryVersion === retryVersionRef.current) {
+        setAuthError(errorMessage(error, 'Alby could not restore your session.'));
+        setIsLoading(false);
+      }
+    }
+  }, [synchronizeSession]);
+
+  const refreshProfile = useCallback(async () => {
+    await synchronizeSession(session);
+  }, [session, synchronizeSession]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const bootstrapTimer = setTimeout(() => void retryAuth(), 0);
+
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const userChanged = currentUserIdRef.current !== (nextSession?.user.id ?? null);
+      setTimeout(() => {
+        if (!mountedRef.current) return;
+        void synchronizeSession(nextSession, userChanged).catch(() => undefined);
+      }, 0);
+    });
+
+    return () => {
+      clearTimeout(bootstrapTimer);
+      mountedRef.current = false;
+      retryVersionRef.current += 1;
+      syncVersionRef.current += 1;
+      data.subscription.unsubscribe();
+    };
+  }, [retryAuth, synchronizeSession]);
+
   const signInWithGoogle = useCallback(async () => {
+    if (Platform.OS === 'web') throw new Error('Google sign-in is currently available only in the Alby mobile app.');
+    if (isRunningInExpoGo()) {
+      throw new Error('Google sign-in requires an Alby development build. Run npm run ios or npm run android.');
+    }
+
     const redirectTo = makeRedirectUri({ scheme: appScheme, path: 'auth/callback' });
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google', options: { redirectTo, skipBrowserRedirect: true },
+      provider: 'google',
+      options: { redirectTo, skipBrowserRedirect: true },
     });
     if (error) throw error;
     if (!data.url) throw new Error('Google did not return an authorization URL.');
+
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     if (result.type !== 'success') return;
-    const code = new URL(result.url).searchParams.get('code');
-    if (!code) throw new Error('Google callback did not include an authorization code.');
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-    if (exchangeError) throw exchangeError;
-  }, []);
 
-  const signInDemo = useCallback(async () => {
-    if (!isStaging) throw new Error('The mock account is available only in staging.');
-    const { error } = await supabase.auth.signInWithPassword({ email: 'jimin@alby.local', password: 'password' });
-    if (error) throw error;
-  }, []);
+    const callbackUrl = new URL(result.url);
+    assertExpectedCallback(callbackUrl, redirectTo);
+    const params = callbackParams(callbackUrl);
+    const providerError = params.get('error_description') ?? params.get('error_code') ?? params.get('error');
+    if (providerError) throw new Error(providerError);
+
+    const code = params.get('code');
+    if (!code) throw new Error('Google callback did not include an authorization code.');
+    const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeError) throw exchangeError;
+    if (!sessionData.session) throw new Error('Google sign-in did not create an Alby session.');
+    await synchronizeSession(sessionData.session, true);
+  }, [synchronizeSession]);
 
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    queryClient.clear();
-  }, []);
+    await synchronizeSession(null, true);
+  }, [synchronizeSession]);
 
   const value = useMemo<AuthContextValue>(() => ({
+    authError,
     isLoading,
     isProfileComplete: Boolean(profile?.username && profile.display_name),
     profile,
     refreshProfile,
+    retryAuth,
     session,
-    signInDemo,
-    signInWithApple,
     signInWithGoogle,
     signOut,
-  }), [isLoading, profile, refreshProfile, session, signInDemo, signInWithApple, signInWithGoogle, signOut]);
+  }), [authError, isLoading, profile, refreshProfile, retryAuth, session, signInWithGoogle, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

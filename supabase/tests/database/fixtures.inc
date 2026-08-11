@@ -1,6 +1,7 @@
--- All mock accounts use password: password
+-- Test-only Google identities. These rows exist only inside the pgTAP
+-- transaction and are rolled back after every database test run.
 insert into auth.users (
-  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  instance_id, id, aud, role, email, email_confirmed_at,
   confirmation_token, recovery_token, email_change_token_new, email_change,
   phone_change, phone_change_token, email_change_token_current, reauthentication_token,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -11,26 +12,25 @@ select
   'authenticated',
   'authenticated',
   seed.email,
-  extensions.crypt('password', extensions.gen_salt('bf')),
   seed.created_at,
   '', '', '', '', '', '', '', '',
-  jsonb_build_object('provider', 'email', 'providers', array['email']),
-  jsonb_build_object('name', seed.display_name),
+  jsonb_build_object('provider', 'google', 'providers', array['google']),
+  jsonb_build_object('full_name', seed.display_name),
   seed.created_at,
   seed.created_at
 from (values
-  ('00000000-0000-0000-0000-000000000001'::uuid, 'jimin@alby.local', 'Jimin Lee', '2025-01-05 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000002'::uuid, 'cody@alby.local', 'Cody Fowler', '2025-01-10 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000003'::uuid, 'aaron@alby.local', 'Aaron Bell', '2025-02-14 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000004'::uuid, 'maya@alby.local', 'Maya Chen', '2025-03-02 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000005'::uuid, 'lena@alby.local', 'Lena Ortiz', '2025-04-19 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000006'::uuid, 'devon@alby.local', 'Devon Price', '2025-05-23 16:00:00+00'::timestamptz)
+  ('00000000-0000-0000-0000-000000000001'::uuid, 'jimin@alby.test', 'Jimin Lee', '2025-01-05 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000002'::uuid, 'cody@alby.test', 'Cody Fowler', '2025-01-10 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000003'::uuid, 'aaron@alby.test', 'Aaron Bell', '2025-02-14 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000004'::uuid, 'maya@alby.test', 'Maya Chen', '2025-03-02 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000005'::uuid, 'lena@alby.test', 'Lena Ortiz', '2025-04-19 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000006'::uuid, 'devon@alby.test', 'Devon Price', '2025-05-23 16:00:00+00'::timestamptz)
 ) as seed(id, email, display_name, created_at);
 
 insert into auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
-select id::text, id, jsonb_build_object('sub', id::text, 'email', email), 'email', created_at, created_at, created_at
+select 'google-test-' || id::text, id, jsonb_build_object('sub', 'google-test-' || id::text, 'email', email), 'google', created_at, created_at, created_at
 from auth.users
-where email like '%@alby.local';
+where email like '%@alby.test';
 
 update public.profiles as profile
 set username = seed.username,
@@ -41,12 +41,12 @@ set username = seed.username,
     created_at = seed.created_at,
     updated_at = seed.created_at
 from (values
-  ('00000000-0000-0000-0000-000000000001'::uuid, 'jimin', 'Jimin Lee', 'avatars/jimin.png', 'Finding the records worth replaying.', false, '2025-01-05 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000002'::uuid, 'cody', 'Cody Fowler', null, 'Jazz, hip-hop, and impossible-to-ignore drums.', false, '2025-01-10 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000003'::uuid, 'aaron', 'Aaron Bell', null, 'Saving everything for the weekend queue.', false, '2025-02-14 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000004'::uuid, 'maya', 'Maya Chen', null, 'Notes for friends, not the algorithm.', true, '2025-03-02 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000005'::uuid, 'lena', 'Lena Ortiz', null, 'Pop maximalist. Ballad apologist.', false, '2025-04-19 16:00:00+00'::timestamptz),
-  ('00000000-0000-0000-0000-000000000006'::uuid, 'devon', 'Devon Price', null, 'One good album at a time.', false, '2025-05-23 16:00:00+00'::timestamptz)
+  ('00000000-0000-0000-0000-000000000001'::uuid, 'test_jimin', 'Jimin Lee', 'avatars/jimin.png', 'Finding the records worth replaying.', false, '2025-01-05 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000002'::uuid, 'test_cody', 'Cody Fowler', null, 'Jazz, hip-hop, and impossible-to-ignore drums.', false, '2025-01-10 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000003'::uuid, 'test_aaron', 'Aaron Bell', null, 'Saving everything for the weekend queue.', false, '2025-02-14 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000004'::uuid, 'test_maya', 'Maya Chen', null, 'Notes for friends, not the algorithm.', true, '2025-03-02 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000005'::uuid, 'test_lena', 'Lena Ortiz', null, 'Pop maximalist. Ballad apologist.', false, '2025-04-19 16:00:00+00'::timestamptz),
+  ('00000000-0000-0000-0000-000000000006'::uuid, 'test_devon', 'Devon Price', null, 'One good album at a time.', false, '2025-05-23 16:00:00+00'::timestamptz)
 ) as seed(id, username, display_name, avatar_path, bio, is_private, created_at)
 where profile.id = seed.id;
 

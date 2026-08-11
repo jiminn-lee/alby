@@ -10,10 +10,55 @@ select is(
   'text',
   'production release dates preserve Spotify precision'
 );
-select is((select count(*) from auth.users), 0::bigint, 'production has no users');
-select is((select count(*) from public.profiles), 0::bigint, 'production has no profiles');
-select is((select count(*) from public.albums), 0::bigint, 'production has no albums');
+select is(
+  (select count(*) from auth.users
+    where id between '00000000-0000-0000-0000-000000000001'::uuid
+        and '00000000-0000-0000-0000-000000000006'::uuid
+      or id between 'f17e0000-0000-4000-8000-000000000001'::uuid
+        and 'f17e0000-0000-4000-8000-000000000003'::uuid
+      or email in (
+        'jimin@alby.local',
+        'cody@alby.local',
+        'aaron@alby.local',
+        'maya@alby.local',
+        'lena@alby.local',
+        'devon@alby.local',
+        'sample-cody@fixtures.alby.test',
+        'sample-maya@fixtures.alby.test',
+        'sample-lena@fixtures.alby.test'
+      )),
+  0::bigint,
+  'production has no tracked fixture principals'
+);
+select is(
+  (select count(*) from public.profiles
+    where id between '00000000-0000-0000-0000-000000000001'::uuid
+        and '00000000-0000-0000-0000-000000000006'::uuid
+      or id between 'f17e0000-0000-4000-8000-000000000001'::uuid
+        and 'f17e0000-0000-4000-8000-000000000003'::uuid),
+  0::bigint,
+  'production has no tracked fixture profiles'
+);
+select is(
+  (select count(*) from public.albums
+    where id between '10000000-0000-0000-0000-000000000001'::uuid
+      and '10000000-0000-0000-0000-000000000012'::uuid),
+  0::bigint,
+  'production has no mock albums'
+);
 select is((select count(*) from storage.buckets where id = 'media'), 1::bigint, 'production has the media bucket');
-select is((select count(*) from storage.objects where bucket_id = 'media'), 0::bigint, 'production media bucket has no mock files');
+select is(
+  (select count(*) from storage.objects
+    where bucket_id = 'media'
+      and name in (
+        'albums/album-rest-in-bass.png',
+        'albums/album-to-pimp-a-butterfly.png',
+        'albums/album-brat.png',
+        'albums/album-i-barely-know-her.png',
+        'avatars/jimin.png'
+      )),
+  0::bigint,
+  'production media bucket has no mock files'
+);
 select * from finish();
 rollback;

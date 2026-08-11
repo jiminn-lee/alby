@@ -8,7 +8,6 @@
     "@supabase/supabase-js": "^2.112.0",
     "@tanstack/react-query": "^5.101.4",
     "expo": "~57.0.11",
-    "expo-apple-authentication": "~57.0.1",
     "expo-asset": "~57.0.8",
     "expo-auth-session": "~57.0.6",
     "expo-constants": "~57.0.9",
@@ -45,7 +44,7 @@
     "start": "expo start --dev-client",
     "start:expo-go": "expo start",
     "android": "expo run:android",
-    "ios": "expo start --go --ios",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
@@ -58,7 +57,8 @@
     "db:dry-run:production": "node scripts/supabase-target.mjs dry-run production",
     "db:push:staging": "node scripts/supabase-target.mjs push staging",
     "db:push:production": "node scripts/supabase-target.mjs push production",
-    "db:seed:staging": "node scripts/supabase-target.mjs seed staging",
+    "db:purge-fixtures:staging": "node scripts/supabase-target.mjs purge-fixtures staging",
+    "db:seed-fixtures:staging": "node scripts/supabase-target.mjs seed-fixtures staging",
     "db:config:staging": "node scripts/supabase-target.mjs config staging",
     "db:config:production": "node scripts/supabase-target.mjs config production",
     "db:verify:staging": "node scripts/supabase-target.mjs verify staging",
@@ -71,8 +71,7 @@
     "spotify:deploy:staging": "node scripts/supabase-target.mjs spotify-deploy staging",
     "spotify:deploy:production": "node scripts/supabase-target.mjs spotify-deploy production",
     "spotify:functions:staging": "node scripts/supabase-target.mjs spotify-list staging",
-    "spotify:functions:production": "node scripts/supabase-target.mjs spotify-list production",
-    "spotify:smoke:staging": "node --env-file=.env.local scripts/spotify-smoke.mjs --confirm=staging"
+    "spotify:functions:production": "node scripts/supabase-target.mjs spotify-list production"
   },
   "private": true
 }

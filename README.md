@@ -12,7 +12,7 @@ Alby uses two Supabase Cloud projects and never requires a local Supabase stack:
 | Preview | `Alby Staging` / `com.alby.app.staging` / `alby-staging://` | staging |
 | Production | `Alby` / `com.alby.app` / `alby://` | production |
 
-The `supabase/` directory is the migration source of truth, and the guarded CLI commands below link directly to the hosted projects for migrations, tests, type generation, configuration, and staging fixtures.
+The `supabase/` directory is the migration source of truth, and the guarded CLI commands below link directly to the hosted projects for migrations, tests, type generation, configuration, and fixture cleanup.
 
 ## App development
 
@@ -24,25 +24,27 @@ The `supabase/` directory is the migration source of truth, and the guarded CLI 
 
 2. Create `.env.local` from `.env.example` and insert the staging Project URL and publishable key. Only publishable keys may use the `EXPO_PUBLIC_` prefix.
 
-3. Start the development client:
+3. Build and install the development client the first time, or whenever native configuration changes:
 
    ```bash
-   npm start
+   npm run ios
+   # or: npm run android
    ```
 
-The staging sign-in screen includes the seeded `jimin@alby.local` mock account. It is not rendered in the production experience. OAuth callbacks require a development or EAS build; Expo Go cannot represent the app's custom native identities reliably.
+4. For later JavaScript-only sessions, start Metro for the installed development client with `npm start`.
+
+Google OAuth is the only active sign-in path and is currently mobile-only. It requires a development or EAS build so the app's custom callback scheme is registered by the native app. `npm run start:expo-go` remains available for UI-only work, but Google sign-in deliberately reports that Expo Go is unsupported. OAuth creates real users, the database trigger creates their profiles, and Spotify searches materialize albums. Staging can additionally host three non-loginable social personas through the explicit fixture command below; they are never installed by the persistent seed or in production. Native Sign in with Apple is deferred until the Apple Developer account is active and must be completed before an iOS App Store release.
 
 ## Database deployment
 
 The guarded commands compare the currently linked Supabase project with `supabase/targets.json`. Remote writes additionally require an explicit confirmation argument.
 
 ```bash
-# Staging: link, review, deploy, seed fixtures, and verify
+# Staging: link, review, deploy, and verify
 npm run db:link:staging
 npm run db:migrations:staging
 npm run db:dry-run:staging
 npm run db:push:staging -- --confirm=staging
-npm run db:seed:staging -- --confirm=staging
 npm run db:config:staging -- --confirm=staging
 npm run db:lint
 npm run db:test
@@ -61,9 +63,28 @@ npm run db:verify:production
 npm run db:link:staging
 ```
 
-Create new migrations with `npx supabase migration new <name>`, deploy them to staging first, and promote the identical files to production. Never add `--include-seed` or run Storage fixture uploads against production.
+To install the staging-only social dataset, first materialize the six tracked Spotify albums, then run the guarded idempotent seed and verification:
 
-The pgTAP suite rebuilds its fixtures inside a transaction and rolls back, so running `npm run db:test` does not leave test data behind on shared staging. The test command also refuses to run if its fixture include has drifted from `seed.sql`. The verification commands assert the expected environment split: staging contains the mock users/albums/media while production contains an empty dataset and an empty configured bucket.
+```bash
+npm run db:link:staging
+npm run db:seed-fixtures:staging -- --confirm=staging
+npm run db:verify:staging
+```
+
+The seed creates Cody, Maya, and Lena as public sample personas with ratings, saves, follows, likes, and comments. Their reserved `.test` Auth principals have no password and no identity, so they cannot sign in. Every completed Google profile follows the three personas; rerun the seed after completing another staging OAuth profile to populate its home feed.
+
+To reset the fixture-owned social data without touching OAuth users or the shared catalog, purge it, reseed it, and then verify staging:
+
+```bash
+npm run db:link:staging
+npm run db:purge-fixtures:staging -- --confirm=staging
+npm run db:seed-fixtures:staging -- --confirm=staging
+npm run db:verify:staging
+```
+
+Create new migrations with `npx supabase migration new <name>`, deploy them to staging first, and promote the identical files to production. The persistent seed is intentionally empty. Both social fixture commands validate the linked staging project, require `--confirm=staging`, and refuse to target production. Purge preserves the shared Spotify catalog and legitimate OAuth data, and aborts if a legitimate user has authored a like or comment on fixture activity.
+
+The pgTAP suite builds synthetic Google identities and social data inside a transaction and rolls back, so running `npm run db:test` does not leave test data behind on shared staging. Staging verification requires the exact social fixture dataset while allowing legitimate OAuth users and additional Spotify-created catalog data. Production verification rejects both retired and current fixture principals, albums, and media.
 
 ## Spotify album search
 
@@ -87,7 +108,6 @@ npm run db:link:staging
 npm run spotify:secrets:staging -- --confirm=staging
 npm run spotify:deploy:staging -- --confirm=staging
 npm run spotify:functions:staging
-npm run spotify:smoke:staging
 
 npm run db:link:production
 npm run spotify:secrets:production -- --confirm=production
@@ -97,7 +117,7 @@ npm run spotify:functions:production
 npm run db:link:staging
 ```
 
-The staging smoke test signs into the fixed mock account and writes catalog rows, so it is guarded and must never target production. Production function deployment does not invoke materialization.
+The automated Spotify tests cover request validation and catalog mapping without credentials. Authenticated remote search and materialization are exercised through the mobile app; there is no password-based smoke account.
 
 ## APIs and secrets
 
@@ -105,4 +125,4 @@ The app talks directly to the selected Supabase project's Auth, generated Data A
 
 The Spotify catalog integration is the first privileged Supabase Edge Function and is deployed separately to staging and production. Future administrative imports and webhooks belong there as well. Spotify credentials, OAuth client secrets, webhook secrets, service-role keys, and Supabase secret keys must never be placed in Expo variables or committed to the repository.
 
-See [docs/cloud-environments.md](docs/cloud-environments.md) for the exact Google/Apple credential and callback checklist.
+See [docs/cloud-environments.md](docs/cloud-environments.md) for the exact Google credential and callback checklist, plus the deferred Apple release requirement.

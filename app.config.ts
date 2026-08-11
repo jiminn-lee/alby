@@ -50,7 +50,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       ...config.ios,
       bundleIdentifier: variant.identifier,
-      usesAppleSignIn: true,
       supportsTablet: false,
     },
     android: {
@@ -64,7 +63,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       'expo-router',
-      'expo-apple-authentication',
       [
         'expo-splash-screen',
         {
