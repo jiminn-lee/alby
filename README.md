@@ -30,7 +30,7 @@ The `supabase/` directory is the migration source of truth, and the guarded CLI 
    npm start
    ```
 
-The staging sign-in screen includes the seeded `jimin@alby.local` mock account. It is not rendered in the production experience. OAuth callbacks require a development or EAS build; Expo Go cannot represent the app's custom native identities reliably.
+The staging sign-in screen includes the seeded `jimin@alby.local` mock account alongside Google sign-in. The mock account is not rendered in production. Google OAuth is currently mobile-only and requires a development or EAS build so the app's custom callback scheme is available. Native Sign in with Apple is deferred until the Apple Developer account is active and must be completed before an iOS App Store release.
 
 ## Database deployment
 
@@ -63,7 +63,7 @@ npm run db:link:staging
 
 Create new migrations with `npx supabase migration new <name>`, deploy them to staging first, and promote the identical files to production. Never add `--include-seed` or run Storage fixture uploads against production.
 
-The pgTAP suite rebuilds its fixtures inside a transaction and rolls back, so running `npm run db:test` does not leave test data behind on shared staging. The test command also refuses to run if its fixture include has drifted from `seed.sql`. The verification commands assert the expected environment split: staging contains the mock users/albums/media while production contains an empty dataset and an empty configured bucket.
+The pgTAP suite rebuilds its fixtures inside a transaction and rolls back, so running `npm run db:test` does not leave test data behind on shared staging. The test command also refuses to run if its fixture include has drifted from `seed.sql`. The verification commands assert the expected environment split: staging preserves the tracked mock users/albums/media alongside OAuth users, while production rejects those mock fixtures but allows legitimate production data.
 
 ## Spotify album search
 
@@ -105,4 +105,4 @@ The app talks directly to the selected Supabase project's Auth, generated Data A
 
 The Spotify catalog integration is the first privileged Supabase Edge Function and is deployed separately to staging and production. Future administrative imports and webhooks belong there as well. Spotify credentials, OAuth client secrets, webhook secrets, service-role keys, and Supabase secret keys must never be placed in Expo variables or committed to the repository.
 
-See [docs/cloud-environments.md](docs/cloud-environments.md) for the exact Google/Apple credential and callback checklist.
+See [docs/cloud-environments.md](docs/cloud-environments.md) for the exact Google credential and callback checklist, plus the deferred Apple release requirement.

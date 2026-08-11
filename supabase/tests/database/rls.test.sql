@@ -21,7 +21,45 @@ where id between '10000000-0000-0000-0000-000000000001'::uuid
 
 \ir fixtures.inc
 
-select plan(51);
+select plan(52);
+
+insert into auth.users (
+  instance_id, id, aud, role, email, email_confirmed_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  phone_change, phone_change_token, email_change_token_current, reauthentication_token,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values (
+  '00000000-0000-0000-0000-000000000000'::uuid,
+  '90000000-0000-0000-0000-000000000001'::uuid,
+  'authenticated',
+  'authenticated',
+  'oauth-profile-test@alby.test',
+  now(),
+  '', '', '', '', '', '', '', '',
+  '{"provider":"google","providers":["google"]}'::jsonb,
+  '{"full_name":"OAuth Profile Test","avatar_url":"https://images.example.test/oauth-avatar.png"}'::jsonb,
+  now(),
+  now()
+);
+
+insert into auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+values (
+  'google-oauth-profile-test',
+  '90000000-0000-0000-0000-000000000001'::uuid,
+  '{"sub":"google-oauth-profile-test","email":"oauth-profile-test@alby.test"}'::jsonb,
+  'google',
+  now(),
+  now(),
+  now()
+);
+
+select is(
+  (select display_name || '|' || avatar_path || '|' || coalesce(username::text, '')
+    from public.profiles
+    where id = '90000000-0000-0000-0000-000000000001'::uuid),
+  'OAuth Profile Test|https://images.example.test/oauth-avatar.png|',
+  'a Google auth user receives provider profile metadata and still requires a username'
+);
 
 select hasnt_column(
   'public',

@@ -16,14 +16,26 @@ export default function CompleteProfileScreen() {
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    if (!session) return;
+    if (!session) { setError('Your session expired. Sign in again.'); return; }
     const normalized = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-    if (normalized.length < 3 || displayName.trim().length < 1) { setError('Use a 3-24 character username and add your display name.'); return; }
+    const normalizedDisplayName = displayName.trim();
+    if (normalized.length < 3 || normalized.length > 24 || normalizedDisplayName.length < 1 || normalizedDisplayName.length > 50) {
+      setError('Use a 3-24 character username and a 1-50 character display name.');
+      return;
+    }
     setSaving(true); setError(null);
-    const { error: updateError } = await supabase.from('profiles').update({ username: normalized, display_name: displayName.trim() }).eq('id', session.user.id);
-    if (updateError) setError(updateError.code === '23505' ? 'That username is already taken.' : updateError.message);
-    else await refreshProfile();
-    setSaving(false);
+    try {
+      const { error: updateError } = await supabase.from('profiles').update({ username: normalized, display_name: normalizedDisplayName }).eq('id', session.user.id);
+      if (updateError) {
+        setError(updateError.code === '23505' ? 'That username is already taken.' : updateError.message);
+        return;
+      }
+      await refreshProfile();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Alby could not save your profile.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -32,8 +44,8 @@ export default function CompleteProfileScreen() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.heading}><Text style={styles.title}>Make Alby yours</Text><Text style={styles.copy}>Choose how friends will find you. You can change these later.</Text></View>
           <View style={styles.form}>
-            <Text style={styles.label}>Display name</Text><AlbyInput autoCapitalize="words" onChangeText={setDisplayName} value={displayName} />
-            <Text style={styles.label}>Username</Text><AlbyInput autoCapitalize="none" autoCorrect={false} onChangeText={setUsername} placeholder="jimin" value={username} />
+            <Text style={styles.label}>Display name</Text><AlbyInput autoCapitalize="words" maxLength={50} onChangeText={setDisplayName} value={displayName} />
+            <Text style={styles.label}>Username</Text><AlbyInput autoCapitalize="none" autoCorrect={false} maxLength={24} onChangeText={setUsername} placeholder="jimin" value={username} />
             {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
             <AlbyButton disabled={saving} icon={CheckCircleIcon} label={saving ? 'Saving...' : 'Enter Alby'} onPress={submit} />
           </View>

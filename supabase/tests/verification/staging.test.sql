@@ -10,8 +10,20 @@ select is(
   'text',
   'staging release dates preserve Spotify precision'
 );
-select is((select count(*) from auth.users), 6::bigint, 'staging has six mock users');
-select is((select count(*) from public.profiles), 6::bigint, 'staging has six mock profiles');
+select is(
+  (select count(*) from auth.users
+    where id between '00000000-0000-0000-0000-000000000001'::uuid
+      and '00000000-0000-0000-0000-000000000006'::uuid),
+  6::bigint,
+  'staging preserves all six mock users alongside OAuth users'
+);
+select is(
+  (select count(*) from public.profiles
+    where id between '00000000-0000-0000-0000-000000000001'::uuid
+      and '00000000-0000-0000-0000-000000000006'::uuid),
+  6::bigint,
+  'staging preserves all six mock profiles alongside OAuth profiles'
+);
 select is(
   (select count(*) from public.albums
     where id between '10000000-0000-0000-0000-000000000001'::uuid
@@ -20,6 +32,18 @@ select is(
   'staging preserves all twelve mock albums'
 );
 select is((select count(*) from storage.buckets where id = 'media'), 1::bigint, 'staging has the media bucket');
-select is((select count(*) from storage.objects where bucket_id = 'media'), 5::bigint, 'staging has five mock media files');
+select is(
+  (select count(*) from storage.objects
+    where bucket_id = 'media'
+      and name in (
+        'albums/album-rest-in-bass.png',
+        'albums/album-to-pimp-a-butterfly.png',
+        'albums/album-brat.png',
+        'albums/album-i-barely-know-her.png',
+        'avatars/jimin.png'
+      )),
+  5::bigint,
+  'staging preserves all five mock media files alongside user uploads'
+);
 select * from finish();
 rollback;
