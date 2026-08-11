@@ -1,3 +1,4 @@
+import { useIsFocused } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   StyleSheet,
@@ -15,13 +16,16 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
 const OverflowTolerance = 1;
 const PixelsPerSecond = 28;
 const MarqueeGap = 32;
+const PauseDurationMs = 3000;
 const MeasurementWidth = 10000;
 
 export function MarqueeText({
@@ -35,10 +39,12 @@ export function MarqueeText({
 }) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [textWidth, setTextWidth] = useState(0);
+  const isFocused = useIsFocused();
   const reduceMotion = useReducedMotion();
   const translateX = useSharedValue(0);
   const overflow = Math.max(0, textWidth - containerWidth);
-  const shouldAnimate = !reduceMotion
+  const shouldAnimate = isFocused
+    && !reduceMotion
     && containerWidth > 0
     && overflow > OverflowTolerance;
 
@@ -51,7 +57,13 @@ export function MarqueeText({
     const loopDistance = textWidth + MarqueeGap;
     const travelDuration = Math.round((loopDistance / PixelsPerSecond) * 1000);
     translateX.value = withRepeat(
-      withTiming(-loopDistance, { duration: travelDuration, easing: Easing.linear }),
+      withSequence(
+        withDelay(
+          PauseDurationMs,
+          withTiming(-loopDistance, { duration: travelDuration, easing: Easing.linear }),
+        ),
+        withTiming(0, { duration: 0 }),
+      ),
       -1,
       false,
       undefined,
