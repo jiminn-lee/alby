@@ -12,6 +12,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Fonts, Palette, PressedOpacity } from '@/constants/theme';
 
 import { ExpandableNote } from './expandable-note';
+import { MarqueeText } from './marquee-text';
 import { DiscTone, RatingDisc } from './rating-disc';
 
 export type PostActionsData = {
@@ -223,17 +224,23 @@ function AlbumSummary({
       )}
       <View style={[styles.albumDetails, compact && styles.compactAlbumDetails]}>
         <View>
-          <Text numberOfLines={1} style={styles.artist}>{artist}</Text>
+          {compact ? (
+            <Text numberOfLines={1} style={styles.artist}>{artist}</Text>
+          ) : (
+            <MarqueeText style={styles.artist} text={artist} />
+          )}
           {!compact && onOpenAlbum ? (
             <Pressable
               accessibilityLabel={`Open ${album}`}
               accessibilityRole="link"
               onPress={onOpenAlbum}
               style={({ pressed }) => pressed && styles.pressed}>
-              <Text adjustsFontSizeToFit numberOfLines={1} style={styles.albumTitle}>{album}</Text>
+              <MarqueeText style={styles.albumTitle} text={album} />
             </Pressable>
+          ) : compact ? (
+            <Text numberOfLines={1} style={styles.albumTitle}>{album}</Text>
           ) : (
-            <Text adjustsFontSizeToFit numberOfLines={1} style={styles.albumTitle}>{album}</Text>
+            <MarqueeText style={styles.albumTitle} text={album} />
           )}
           {rating !== undefined && (
             <View
