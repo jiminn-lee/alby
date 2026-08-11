@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MarqueeText } from '@/components/marquee-text';
 import { RatingInput } from '@/components/rating-input';
 import { AlbyButton, ScreenState } from '@/components/ui';
 import { Fonts, Palette } from '@/constants/theme';
@@ -67,13 +68,14 @@ function ComposerContent({ album, error, note, onCancel, onChangeNote, onChangeV
   value: number;
 }) {
   const cover = getMediaUrl(album.cover_path);
+  const metadata = `${album.artist_name} • ${album.release_date?.slice(0, 4) ?? '—'} • ${album.track_count} tracks`;
   return (
     <>
       <View style={styles.albumRow}>
         {cover ? <Image source={cover} style={styles.cover} /> : <View style={styles.cover} />}
         <View style={styles.albumCopy}>
-          <Text numberOfLines={1} style={styles.artist}>{album.artist_name} • {album.release_date?.slice(0, 4) ?? '—'} • {album.track_count} tracks</Text>
-          <Text numberOfLines={1} style={styles.title}>{album.title}</Text>
+          <MarqueeText style={styles.artist} text={metadata} />
+          <MarqueeText style={styles.title} text={album.title} />
         </View>
       </View>
 

@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RatingDisc, type DiscTone } from '@/components/rating-disc';
 import { ActivityFeed } from '@/components/social-feed';
+import { MarqueeText } from '@/components/marquee-text';
 import { AlbyButton, ScreenState } from '@/components/ui';
 import { Fonts, MaxContentWidth, Palette, PressedOpacity } from '@/constants/theme';
 import { useAlbum, useAlbumActivity, useDeleteRatingMutation, useListenLaterMutation } from '@/features/data/hooks';
@@ -42,6 +43,7 @@ export default function AlbumDetailScreen() {
   const cover = getMediaUrl(album.cover_path);
   const spotifyUrl = album.spotify_url ?? `https://open.spotify.com/search/${encodeURIComponent(`${album.title} ${album.artist_name}`)}`;
   const year = album.release_date?.slice(0, 4) ?? '—';
+  const metadata = `${album.artist_name} • ${year} • ${album.track_count} tracks`;
   const compactHeaderOpacity = scrollY.interpolate({
     inputRange: [Math.max(0, (heroBottom ?? 100000) - 24), heroBottom ?? 100024],
     outputRange: [0, 1],
@@ -96,8 +98,8 @@ export default function AlbumDetailScreen() {
             style={styles.albumHero}>
             {cover ? <Image source={cover} style={styles.cover} /> : <View style={styles.coverPlaceholder} />}
             <View style={styles.albumCopy}>
-              <Text numberOfLines={1} style={styles.artist}>{album.artist_name} • {year} • {album.track_count} tracks</Text>
-              <Text numberOfLines={2} style={styles.title}>{album.title}</Text>
+              <MarqueeText align="center" style={styles.artist} text={metadata} />
+              <Text style={styles.title}>{album.title}</Text>
             </View>
             <View style={styles.actions}>
               <AlbyButton icon={PlusCircleIcon} label={myRating ? 'Rate Again' : 'Rate'} onPress={openRatingComposer} size="compact" />
@@ -133,8 +135,8 @@ export default function AlbumDetailScreen() {
               <ArrowLeftIcon color={Palette.brand} size={20} />
             </Pressable>
             <Pressable accessibilityLabel={`Scroll to ${album.title}`} accessibilityRole="button" onPress={scrollToTop} style={({ pressed }) => [styles.compactIdentity, pressed && styles.pressed]}>
-              <Text numberOfLines={1} style={styles.compactArtist}>{album.artist_name}</Text>
-              <Text numberOfLines={1} style={styles.compactTitle}>{album.title}</Text>
+              <MarqueeText style={styles.compactArtist} text={album.artist_name} />
+              <MarqueeText style={styles.compactTitle} text={album.title} />
             </Pressable>
           </View>
           <View style={styles.compactActions}>
