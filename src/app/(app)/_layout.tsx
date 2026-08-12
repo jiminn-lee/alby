@@ -9,6 +9,15 @@ export default function AppLayout() {
       <Stack.Screen name="users/[username]" />
       <Stack.Screen name="albums/[albumId]/index" />
       <Stack.Screen
+        name="comments/[activityId]"
+        options={{
+          animation: 'none',
+          contentStyle: { backgroundColor: 'transparent' },
+          gestureEnabled: false,
+          presentation: 'transparentModal',
+        }}
+      />
+      <Stack.Screen
         name="albums/[albumId]/rate"
         options={{ animation: 'fade', presentation: 'transparentModal', contentStyle: { backgroundColor: 'transparent' } }}
       />

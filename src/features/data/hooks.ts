@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth-provider';
-import type { Album, AlbumRatingSummary, HomeFeedItem, ProfileOverview, Rating } from '@/types/domain';
+import type { Album, AlbumRatingSummary, Comment, HomeFeedItem, Profile, ProfileOverview, Rating } from '@/types/domain';
 
 const LISTEN_LATER_ACTIVITY_DELAY_MS = 5_000;
 
 export const queryKeys = {
   home: ['home-feed'] as const,
+  comments: (activityId: string) => ['activity-comments', activityId] as const,
   album: (id: string) => ['album', id] as const,
   albumActivity: (id: string) => ['album-activity', id] as const,
   profile: (username: string) => ['profile', username] as const,
@@ -25,7 +26,7 @@ export type SocialActivity = {
   id: string;
   rating: Rating | null;
   likes: { count: number }[];
-  comments: { count: number }[];
+  comments_count: number;
   liked_by_me: boolean;
   saved_by_me: boolean;
   my_rating_value: number | null;
@@ -34,6 +35,16 @@ export type SocialActivity = {
 
 export type ProfileRating = Rating & { album: Album };
 export type SavedAlbum = { album: Album; album_id: string; created_at: string; id: string; user_id: string };
+export type ActivityComment = Comment & {
+  author: Pick<Profile, 'avatar_path' | 'display_name' | 'id' | 'username'>;
+  liked_by_me: boolean;
+  likes_count: number;
+};
+
+export type ActivityComments = {
+  activityAuthorId: string;
+  items: ActivityComment[];
+};
 
 export function useHomeFeed() {
   return useQuery({
@@ -43,6 +54,105 @@ export function useHomeFeed() {
       if (error) throw error;
       return data as HomeFeedItem[];
     },
+  });
+}
+
+export function useActivityComments(activityId?: string) {
+  const { session } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.comments(activityId ?? ''),
+    enabled: Boolean(activityId && session),
+    queryFn: async () => {
+      const [eventResult, commentsResult] = await Promise.all([
+        supabase.from('activity_events').select('actor_id').eq('id', activityId!).maybeSingle(),
+        supabase.from('comments')
+          .select('id, user_id, activity_event_id, parent_comment_id, body, created_at, updated_at, author:profiles!comments_user_id_fkey(id, username, display_name, avatar_path), comment_likes(count)')
+          .eq('activity_event_id', activityId!)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      ]);
+      if (eventResult.error) throw eventResult.error;
+      if (!eventResult.data) throw new Error('This activity is no longer available.');
+      if (commentsResult.error) throw commentsResult.error;
+
+      type CommentQueryRow = Comment & {
+        author: Pick<Profile, 'avatar_path' | 'display_name' | 'id' | 'username'>;
+        comment_likes: { count: number }[];
+      };
+      const rows = commentsResult.data as unknown as CommentQueryRow[];
+      const commentIds = rows.map((comment) => comment.id);
+      const myLikesResult = commentIds.length
+        ? await supabase.from('comment_likes').select('comment_id')
+          .eq('user_id', session!.user.id).in('comment_id', commentIds)
+        : { data: [], error: null };
+      if (myLikesResult.error) throw myLikesResult.error;
+      const likedCommentIds = new Set(myLikesResult.data.map((like) => like.comment_id));
+
+      return {
+        activityAuthorId: eventResult.data.actor_id,
+        items: rows.map(({ comment_likes: commentLikes, ...comment }) => ({
+          ...comment,
+          liked_by_me: likedCommentIds.has(comment.id),
+          likes_count: commentLikes[0]?.count ?? 0,
+        })),
+      } satisfies ActivityComments;
+    },
+  });
+}
+
+export function useCreateCommentMutation(activityId: string) {
+  const { session } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ body, parentCommentId }: { body: string; parentCommentId?: string | null }) => {
+      if (!session) throw new Error('Sign in required.');
+      const { data, error } = await supabase.from('comments').insert({
+        activity_event_id: activityId,
+        body: body.trim(),
+        parent_comment_id: parentCommentId ?? null,
+        user_id: session.user.id,
+      }).select('id, parent_comment_id').single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => Promise.all([
+      client.invalidateQueries({ queryKey: queryKeys.comments(activityId) }),
+      client.invalidateQueries({ queryKey: queryKeys.home }),
+      client.invalidateQueries({ queryKey: ['profile-feed'] }),
+      client.invalidateQueries({ queryKey: ['album-activity'] }),
+    ]),
+  });
+}
+
+export function useCommentLikeMutation(activityId: string) {
+  const { session } = useAuth();
+  const client = useQueryClient();
+  const key = queryKeys.comments(activityId);
+  return useMutation({
+    mutationFn: async ({ commentId, shouldLike }: { commentId: string; shouldLike: boolean }) => {
+      if (!session) throw new Error('Sign in required.');
+      const result = shouldLike
+        ? await supabase.from('comment_likes').insert({ comment_id: commentId, user_id: session.user.id })
+        : await supabase.from('comment_likes').delete().eq('comment_id', commentId).eq('user_id', session.user.id);
+      if (result.error) throw result.error;
+    },
+    onMutate: async ({ commentId, shouldLike }) => {
+      await client.cancelQueries({ queryKey: key });
+      const previous = client.getQueryData<ActivityComments>(key);
+      client.setQueryData<ActivityComments>(key, (current) => current ? {
+        ...current,
+        items: current.items.map((comment) => comment.id === commentId ? {
+          ...comment,
+          liked_by_me: shouldLike,
+          likes_count: Math.max(0, comment.likes_count + (shouldLike ? 1 : -1)),
+        } : comment),
+      } : current);
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) client.setQueryData(key, context.previous);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: key }),
   });
 }
 
@@ -80,7 +190,7 @@ export function useAlbumActivity(albumId?: string, pinnedRatingId?: string | nul
     queryKey: [...queryKeys.albumActivity(albumId ?? ''), pinnedRatingId ?? null],
     enabled: Boolean(albumId && session && enabled),
     queryFn: async () => {
-      const select = 'id, activity_type, album_id, created_at, actor:profiles!activity_events_actor_id_fkey(id, username, display_name, avatar_path), album:albums(*), rating:ratings(*), likes(count), comments(count)';
+      const select = 'id, activity_type, album_id, created_at, actor:profiles!activity_events_actor_id_fkey(id, username, display_name, avatar_path), album:albums(*), rating:ratings(*), likes(count)';
       const feedPromise = supabase.from('activity_events')
         .select(select)
         .eq('album_id', albumId!)
@@ -119,7 +229,7 @@ export function useProfileFeed(profileId?: string, enabled = true) {
     queryKey: queryKeys.profileFeed(profileId ?? ''), enabled: Boolean(profileId && enabled),
     queryFn: async () => {
       const { data, error } = await supabase.from('activity_events')
-        .select('id, activity_type, album_id, created_at, actor:profiles!activity_events_actor_id_fkey(id, username, display_name, avatar_path), album:albums(*), rating:ratings(*), likes(count), comments(count)')
+        .select('id, activity_type, album_id, created_at, actor:profiles!activity_events_actor_id_fkey(id, username, display_name, avatar_path), album:albums(*), rating:ratings(*), likes(count)')
         .eq('actor_id', profileId!).order('created_at', { ascending: false }).limit(30);
       if (error) throw error;
       return enrichSocialActivities(data as unknown as SocialActivity[], session!.user.id);
@@ -134,21 +244,29 @@ async function enrichSocialActivities(items: SocialActivity[], userId: string) {
   const listenNumbersPromise = ratingIds.length
     ? supabase.from('rating_listen_numbers').select('rating_id, listen_number').in('rating_id', ratingIds)
     : Promise.resolve({ data: [], error: null });
-  const [likesResult, savesResult, ratingsResult, listenNumbersResult] = await Promise.all([
+  const commentsPromise = supabase.from('comments').select('activity_event_id')
+    .in('activity_event_id', items.map((item) => item.id));
+  const [likesResult, savesResult, ratingsResult, listenNumbersResult, commentsResult] = await Promise.all([
     supabase.from('likes').select('activity_event_id').eq('user_id', userId).in('activity_event_id', items.map((item) => item.id)),
     supabase.from('listen_later_items').select('album_id').eq('user_id', userId).in('album_id', albumIds),
     supabase.from('ratings').select('album_id, value, created_at, id').eq('user_id', userId).in('album_id', albumIds)
       .order('created_at', { ascending: false }).order('id', { ascending: false }),
     listenNumbersPromise,
+    commentsPromise,
   ]);
   if (likesResult.error) throw likesResult.error;
   if (savesResult.error) throw savesResult.error;
   if (ratingsResult.error) throw ratingsResult.error;
   if (listenNumbersResult.error) throw listenNumbersResult.error;
+  if (commentsResult.error) throw commentsResult.error;
   const liked = new Set(likesResult.data.map((item) => item.activity_event_id));
   const saved = new Set(savesResult.data.map((item) => item.album_id));
   const ratings = new Map<string, number>();
   const listenNumbers = new Map(listenNumbersResult.data.map((item) => [item.rating_id, item.listen_number]));
+  const commentCounts = new Map<string, number>();
+  commentsResult.data.forEach((comment) => {
+    commentCounts.set(comment.activity_event_id, (commentCounts.get(comment.activity_event_id) ?? 0) + 1);
+  });
   ratingsResult.data.forEach((item) => {
     if (!ratings.has(item.album_id)) ratings.set(item.album_id, item.value);
   });
@@ -158,6 +276,7 @@ async function enrichSocialActivities(items: SocialActivity[], userId: string) {
     saved_by_me: saved.has(item.album_id),
     my_rating_value: ratings.get(item.album_id) ?? null,
     rating_listen_number: item.rating ? listenNumbers.get(item.rating.id) ?? null : null,
+    comments_count: commentCounts.get(item.id) ?? 0,
   }));
 }
 

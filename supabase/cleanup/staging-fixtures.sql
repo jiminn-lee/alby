@@ -81,6 +81,26 @@ begin
           'f17e0000-0000-4000-8000-000000000003'::uuid
         )
       )
+  ) or exists (
+    select 1
+    from public.comment_likes reaction
+    join public.comments comment on comment.id = reaction.comment_id
+    where reaction.user_id not between '00000000-0000-0000-0000-000000000001'::uuid
+      and '00000000-0000-0000-0000-000000000006'::uuid
+      and reaction.user_id not in (
+        'f17e0000-0000-4000-8000-000000000001'::uuid,
+        'f17e0000-0000-4000-8000-000000000002'::uuid,
+        'f17e0000-0000-4000-8000-000000000003'::uuid
+      )
+      and (
+        comment.user_id between '00000000-0000-0000-0000-000000000001'::uuid
+          and '00000000-0000-0000-0000-000000000006'::uuid
+        or comment.user_id in (
+          'f17e0000-0000-4000-8000-000000000001'::uuid,
+          'f17e0000-0000-4000-8000-000000000002'::uuid,
+          'f17e0000-0000-4000-8000-000000000003'::uuid
+        )
+      )
   ) then
     raise exception using
       message = 'Refusing to purge staging fixtures because an OAuth user has data attached to mock content.';

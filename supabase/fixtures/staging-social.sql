@@ -406,6 +406,7 @@ insert into public.comments (
   id,
   user_id,
   activity_event_id,
+  parent_comment_id,
   body,
   created_at,
   updated_at
@@ -414,6 +415,7 @@ select
   fixture.id,
   fixture.user_id,
   event.id,
+  null,
   fixture.body,
   now() - fixture.age,
   now() - fixture.age
@@ -422,6 +424,7 @@ from (values
     'f17e3000-0000-4000-8000-000000000001'::uuid,
     'f17e0000-0000-4000-8000-000000000003'::uuid,
     'f17e1000-0000-4000-8000-000000000001'::uuid,
+    null::uuid,
     'Perfect opener, too.',
     interval '5 days 22 hours'
   ),
@@ -429,6 +432,7 @@ from (values
     'f17e3000-0000-4000-8000-000000000002'::uuid,
     'f17e0000-0000-4000-8000-000000000001'::uuid,
     'f17e1000-0000-4000-8000-000000000004'::uuid,
+    null::uuid,
     'This one never gets old.',
     interval '5 days 10 hours'
   ),
@@ -436,12 +440,184 @@ from (values
     'f17e3000-0000-4000-8000-000000000003'::uuid,
     'f17e0000-0000-4000-8000-000000000002'::uuid,
     'f17e1000-0000-4000-8000-000000000009'::uuid,
+    null::uuid,
     'Adding this to the queue.',
     interval '22 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000004'::uuid,
+    'f17e0000-0000-4000-8000-000000000002'::uuid,
+    'f17e1000-0000-4000-8000-000000000002'::uuid,
+    null::uuid,
+    'The second half is where it really clicked for me.',
+    interval '3 days 23 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000005'::uuid,
+    'f17e0000-0000-4000-8000-000000000003'::uuid,
+    'f17e1000-0000-4000-8000-000000000005'::uuid,
+    null::uuid,
+    'That chorus has been stuck in my head all week.',
+    interval '3 days 10 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000006'::uuid,
+    'f17e0000-0000-4000-8000-000000000002'::uuid,
+    null::uuid,
+    'f17e2000-0000-4000-8000-000000000001'::uuid,
+    'I have been meaning to hear this one too.',
+    interval '17 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000007'::uuid,
+    'f17e0000-0000-4000-8000-000000000003'::uuid,
+    null::uuid,
+    'f17e2000-0000-4000-8000-000000000002'::uuid,
+    'Good call. The production is gorgeous.',
+    interval '28 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000008'::uuid,
+    'f17e0000-0000-4000-8000-000000000001'::uuid,
+    null::uuid,
+    'f17e2000-0000-4000-8000-000000000003'::uuid,
+    'This has been sitting in my queue forever.',
+    interval '40 hours'
   )
-) as fixture(id, user_id, rating_id, body, age)
-join public.activity_events event on event.rating_id = fixture.rating_id
-on conflict (id) do nothing;
+) as fixture(id, user_id, rating_id, listen_later_item_id, body, age)
+join public.activity_events event
+  on event.rating_id = fixture.rating_id
+  or event.listen_later_item_id = fixture.listen_later_item_id
+on conflict (id) do update set
+  user_id = excluded.user_id,
+  activity_event_id = excluded.activity_event_id,
+  parent_comment_id = excluded.parent_comment_id,
+  body = excluded.body,
+  created_at = excluded.created_at,
+  updated_at = excluded.updated_at;
+
+insert into public.comments (
+  id,
+  user_id,
+  activity_event_id,
+  parent_comment_id,
+  body,
+  created_at,
+  updated_at
+)
+select
+  fixture.id,
+  fixture.user_id,
+  parent.activity_event_id,
+  parent.id,
+  fixture.body,
+  now() - fixture.age,
+  now() - fixture.age
+from (values
+  (
+    'f17e3000-0000-4000-8000-000000000009'::uuid,
+    'f17e0000-0000-4000-8000-000000000002'::uuid,
+    'f17e3000-0000-4000-8000-000000000001'::uuid,
+    'The bass entrance gets me every time.',
+    interval '5 days 20 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000010'::uuid,
+    'f17e0000-0000-4000-8000-000000000001'::uuid,
+    'f17e3000-0000-4000-8000-000000000001'::uuid,
+    'Same. It sets up the whole record perfectly.',
+    interval '5 days 18 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000011'::uuid,
+    'f17e0000-0000-4000-8000-000000000003'::uuid,
+    'f17e3000-0000-4000-8000-000000000001'::uuid,
+    'The transition into the next track is unreal.',
+    interval '5 days'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000012'::uuid,
+    'f17e0000-0000-4000-8000-000000000002'::uuid,
+    'f17e3000-0000-4000-8000-000000000001'::uuid,
+    'I caught a detail there today that I had never noticed.',
+    interval '4 days'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000013'::uuid,
+    'f17e0000-0000-4000-8000-000000000001'::uuid,
+    'f17e3000-0000-4000-8000-000000000001'::uuid,
+    'That is why this album keeps rewarding replays.',
+    interval '3 days'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000014'::uuid,
+    'f17e0000-0000-4000-8000-000000000003'::uuid,
+    'f17e3000-0000-4000-8000-000000000001'::uuid,
+    'Putting it back on tonight.',
+    interval '2 days'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000015'::uuid,
+    'f17e0000-0000-4000-8000-000000000002'::uuid,
+    'f17e3000-0000-4000-8000-000000000001'::uuid,
+    'Report back when you do.',
+    interval '1 day'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000016'::uuid,
+    'f17e0000-0000-4000-8000-000000000003'::uuid,
+    'f17e3000-0000-4000-8000-000000000006'::uuid,
+    'The closing track alone is worth it.',
+    interval '15 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000017'::uuid,
+    'f17e0000-0000-4000-8000-000000000001'::uuid,
+    'f17e3000-0000-4000-8000-000000000006'::uuid,
+    'Okay, moving it to the top of the list.',
+    interval '12 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000018'::uuid,
+    'f17e0000-0000-4000-8000-000000000002'::uuid,
+    'f17e3000-0000-4000-8000-000000000006'::uuid,
+    'You will not regret it.',
+    interval '8 hours'
+  ),
+  (
+    'f17e3000-0000-4000-8000-000000000019'::uuid,
+    'f17e0000-0000-4000-8000-000000000003'::uuid,
+    'f17e3000-0000-4000-8000-000000000006'::uuid,
+    'Now I want to replay it too.',
+    interval '3 hours'
+  )
+) as fixture(id, user_id, parent_comment_id, body, age)
+join public.comments parent on parent.id = fixture.parent_comment_id
+on conflict (id) do update set
+  user_id = excluded.user_id,
+  activity_event_id = excluded.activity_event_id,
+  parent_comment_id = excluded.parent_comment_id,
+  body = excluded.body,
+  created_at = excluded.created_at,
+  updated_at = excluded.updated_at;
+
+insert into public.comment_likes (user_id, comment_id, created_at)
+select fixture.user_id, fixture.comment_id, now() - fixture.age
+from (values
+  ('f17e0000-0000-4000-8000-000000000002'::uuid, 'f17e3000-0000-4000-8000-000000000001'::uuid, interval '5 days 19 hours'),
+  ('f17e0000-0000-4000-8000-000000000001'::uuid, 'f17e3000-0000-4000-8000-000000000001'::uuid, interval '5 days 17 hours'),
+  ('f17e0000-0000-4000-8000-000000000003'::uuid, 'f17e3000-0000-4000-8000-000000000002'::uuid, interval '5 days 9 hours'),
+  ('f17e0000-0000-4000-8000-000000000001'::uuid, 'f17e3000-0000-4000-8000-000000000003'::uuid, interval '21 hours'),
+  ('f17e0000-0000-4000-8000-000000000002'::uuid, 'f17e3000-0000-4000-8000-000000000004'::uuid, interval '3 days 22 hours'),
+  ('f17e0000-0000-4000-8000-000000000003'::uuid, 'f17e3000-0000-4000-8000-000000000005'::uuid, interval '3 days 9 hours'),
+  ('f17e0000-0000-4000-8000-000000000001'::uuid, 'f17e3000-0000-4000-8000-000000000006'::uuid, interval '16 hours'),
+  ('f17e0000-0000-4000-8000-000000000003'::uuid, 'f17e3000-0000-4000-8000-000000000006'::uuid, interval '14 hours'),
+  ('f17e0000-0000-4000-8000-000000000001'::uuid, 'f17e3000-0000-4000-8000-000000000009'::uuid, interval '5 days 16 hours'),
+  ('f17e0000-0000-4000-8000-000000000002'::uuid, 'f17e3000-0000-4000-8000-000000000011'::uuid, interval '4 days 23 hours'),
+  ('f17e0000-0000-4000-8000-000000000003'::uuid, 'f17e3000-0000-4000-8000-000000000016'::uuid, interval '13 hours'),
+  ('f17e0000-0000-4000-8000-000000000002'::uuid, 'f17e3000-0000-4000-8000-000000000019'::uuid, interval '2 hours')
+) as fixture(user_id, comment_id, age)
+on conflict (user_id, comment_id) do update set created_at = excluded.created_at;
 
 do $$
 begin
@@ -472,7 +648,15 @@ begin
       'f17e0000-0000-4000-8000-000000000003'::uuid) <> 4
     or (select count(*) from public.comments where user_id between
       'f17e0000-0000-4000-8000-000000000001'::uuid and
-      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 3
+      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 19
+    or (select count(*) from public.comments
+      where user_id between
+        'f17e0000-0000-4000-8000-000000000001'::uuid and
+        'f17e0000-0000-4000-8000-000000000003'::uuid
+      and parent_comment_id is null) <> 8
+    or (select count(*) from public.comment_likes where user_id between
+      'f17e0000-0000-4000-8000-000000000001'::uuid and
+      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 12
     or (select count(*) from public.follows
       where follower_id between
         'f17e0000-0000-4000-8000-000000000001'::uuid and

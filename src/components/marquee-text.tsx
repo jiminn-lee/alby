@@ -1,5 +1,5 @@
-import { useIsFocused } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useIsFocused, usePathname } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -26,6 +26,7 @@ const OverflowTolerance = 1;
 const PixelsPerSecond = 28;
 const MarqueeGap = 32;
 const PauseDurationMs = 3000;
+const NavigationBlurGraceMs = 300;
 const MeasurementWidth = 10000;
 
 export function MarqueeText({
@@ -40,19 +41,37 @@ export function MarqueeText({
   const [containerWidth, setContainerWidth] = useState(0);
   const [textWidth, setTextWidth] = useState(0);
   const isFocused = useIsFocused();
+  const pathname = usePathname();
   const reduceMotion = useReducedMotion();
   const translateX = useSharedValue(0);
+  const runningAnimationKey = useRef<string | null>(null);
   const overflow = Math.max(0, textWidth - containerWidth);
-  const shouldAnimate = isFocused
-    && !reduceMotion
+  const canAnimate = !reduceMotion
     && containerWidth > 0
     && overflow > OverflowTolerance;
+  const shouldRunAnimation = isFocused || pathname.startsWith('/comments/');
+  const animationKey = `${text}:${textWidth}`;
 
   useEffect(() => {
-    cancelAnimation(translateX);
-    translateX.value = 0;
+    const stopAnimation = () => {
+      cancelAnimation(translateX);
+      translateX.value = 0;
+      runningAnimationKey.current = null;
+    };
 
-    if (!shouldAnimate) return;
+    if (!canAnimate) {
+      stopAnimation();
+      return;
+    }
+
+    if (!shouldRunAnimation) {
+      const blurTimeout = setTimeout(stopAnimation, NavigationBlurGraceMs);
+      return () => clearTimeout(blurTimeout);
+    }
+
+    if (runningAnimationKey.current === animationKey) return;
+
+    stopAnimation();
 
     const loopDistance = textWidth + MarqueeGap;
     const travelDuration = Math.round((loopDistance / PixelsPerSecond) * 1000);
@@ -69,9 +88,10 @@ export function MarqueeText({
       undefined,
       ReduceMotion.System,
     );
+    runningAnimationKey.current = animationKey;
+  }, [animationKey, canAnimate, shouldRunAnimation, textWidth, translateX]);
 
-    return () => cancelAnimation(translateX);
-  }, [shouldAnimate, text, textWidth, translateX]);
+  useEffect(() => () => cancelAnimation(translateX), [translateX]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -93,9 +113,9 @@ export function MarqueeText({
 
   return (
     <View
-      accessibilityLabel={shouldAnimate ? text : undefined}
-      accessibilityRole={shouldAnimate ? 'text' : undefined}
-      accessible={shouldAnimate}
+      accessibilityLabel={canAnimate ? text : undefined}
+      accessibilityRole={canAnimate ? 'text' : undefined}
+      accessible={canAnimate}
       onLayout={updateContainerWidth}
       style={styles.viewport}>
       <View
@@ -108,7 +128,7 @@ export function MarqueeText({
         </Text>
       </View>
 
-      {shouldAnimate ? (
+      {canAnimate ? (
         <Animated.View
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"

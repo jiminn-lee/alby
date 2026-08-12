@@ -22,6 +22,7 @@ export function HomeFeed({ items }: { items: HomeFeedItem[] }) {
     const isOwnActivity = item.actor_id === session?.user.id;
     const onOpenAlbum = () => router.push({ pathname: '/albums/[albumId]', params: { albumId: item.album_id } });
     const onRate = () => router.push({ pathname: '/albums/[albumId]/rate', params: { albumId: item.album_id } });
+    const onOpenComments = () => router.push({ pathname: '/comments/[activityId]', params: { activityId: item.id } });
     const actions: PostActionsData = {
       onRate,
       rateLabel: item.my_rating_value == null ? 'Rate it' : 'Rate again',
@@ -40,6 +41,7 @@ export function HomeFeed({ items }: { items: HomeFeedItem[] }) {
       initiallyLiked: item.liked_by_me,
       likes: item.likes_count,
       onLike: (liked: boolean) => like.mutate({ activityId: item.id, liked: !liked }),
+      onOpenComments,
       onOpenAlbum,
       time: relativeTime(item.created_at),
       user: isOwnActivity ? 'You' : item.actor_display_name || item.actor_username || 'Alby user',
@@ -96,6 +98,7 @@ export function ActivityFeed({ albumDetail = false, items, onDeleteRating, pinne
     const pinned = item.id === pinnedItem?.id;
     const onOpenAlbum = albumDetail ? undefined : () => router.push({ pathname: '/albums/[albumId]', params: { albumId: item.album_id } });
     const onRate = () => router.push({ pathname: '/albums/[albumId]/rate', params: { albumId: item.album_id } });
+    const onOpenComments = () => router.push({ pathname: '/comments/[activityId]', params: { activityId: item.id } });
     const feedActions: PostActionsData = {
       onRate,
       rateLabel: item.my_rating_value == null ? 'Rate it' : 'Rate again',
@@ -109,11 +112,12 @@ export function ActivityFeed({ albumDetail = false, items, onDeleteRating, pinne
       album: item.album.title,
       artist: item.album.artist_name,
       avatar: getMediaUrl(item.actor.avatar_path) ?? undefined,
-      comments: item.comments[0]?.count ?? 0,
+      comments: item.comments_count,
       initial: (item.actor.display_name || item.actor.username || '?')[0].toUpperCase(),
       initiallyLiked: item.liked_by_me,
       likes: item.likes[0]?.count ?? 0,
       onLike: (liked: boolean) => like.mutate({ activityId: item.id, liked: !liked }),
+      onOpenComments,
       onOpenAlbum,
       time: relativeTime(item.created_at),
       user: isOwnActivity ? 'You' : item.actor.display_name || item.actor.username || 'Alby user',
