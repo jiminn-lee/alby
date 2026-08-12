@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { HeartIcon } from 'phosphor-react-native/src/icons/Heart';
 import { PaperPlaneRightIcon } from 'phosphor-react-native/src/icons/PaperPlaneRight';
 import { XIcon } from 'phosphor-react-native/src/icons/X';
@@ -11,11 +12,24 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type ListRenderItemInfo,
 } from 'react-native';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  Extrapolation,
+  FadeIn,
+  interpolate,
+  LinearTransition,
+  SlideInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { ExpandableNote } from '@/components/expandable-note';
 import { AlbyButton } from '@/components/ui';
@@ -30,6 +44,14 @@ import { getMediaUrl } from '@/lib/media';
 import { useAuth } from '@/providers/auth-provider';
 
 const REPLY_BATCH_SIZE = 3;
+const SHEET_COLLAPSED_RATIO = 0.25;
+const SHEET_DISMISS_DISTANCE = 88;
+const SHEET_FLING_VELOCITY = 850;
+const SHEET_DISMISS_VELOCITY = 1100;
+const SHEET_TIMING = {
+  duration: 320,
+  easing: Easing.out(Easing.cubic),
+};
 
 type CommentThread = {
   replies: ActivityComment[];
@@ -47,11 +69,80 @@ export function CommentsSheet({ activityId }: { activityId: string }) {
   const commentLike = useCommentLikeMutation(activityId);
   const { profile } = useAuth();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetHeight = Math.max(1, windowHeight - insets.top);
+  const collapsedY = sheetHeight * SHEET_COLLAPSED_RATIO;
   const listRef = useRef<FlatList<CommentThread>>(null);
   const inputRef = useRef<TextInput>(null);
+  const translateY = useSharedValue(collapsedY);
+  const dragStartY = useSharedValue(collapsedY);
+  const activeDetent = useSharedValue<'collapsed' | 'expanded' | 'dismissed'>('collapsed');
   const [body, setBody] = useState('');
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
   const [visibleReplies, setVisibleReplies] = useState<Record<string, number>>({});
+
+  const finishDismiss = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/');
+    }
+  };
+
+  const dismissSheet = () => {
+    if (activeDetent.value === 'dismissed') return;
+    activeDetent.value = 'dismissed';
+    translateY.value = withTiming(sheetHeight, SHEET_TIMING, (finished) => {
+      if (finished) scheduleOnRN(finishDismiss);
+    });
+  };
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetY([-8, 8])
+    .failOffsetX([-12, 12])
+    .onBegin(() => {
+      dragStartY.value = translateY.value;
+    })
+    .onUpdate((event) => {
+      translateY.value = Math.min(
+        sheetHeight,
+        Math.max(0, dragStartY.value + event.translationY),
+      );
+    })
+    .onEnd((event) => {
+      const startedCollapsed = dragStartY.value >= collapsedY / 2;
+      const shouldDismiss = startedCollapsed && (
+        translateY.value >= collapsedY + SHEET_DISMISS_DISTANCE
+        || event.velocityY >= SHEET_DISMISS_VELOCITY
+      );
+
+      if (shouldDismiss) {
+        activeDetent.value = 'dismissed';
+        translateY.value = withTiming(sheetHeight, SHEET_TIMING, (finished) => {
+          if (finished) scheduleOnRN(finishDismiss);
+        });
+        return;
+      }
+
+      const shouldExpand = event.velocityY <= -SHEET_FLING_VELOCITY
+        || (event.velocityY < SHEET_FLING_VELOCITY && translateY.value < collapsedY / 2);
+      const destination = shouldExpand ? 0 : collapsedY;
+      activeDetent.value = shouldExpand ? 'expanded' : 'collapsed';
+      translateY.value = withTiming(destination, SHEET_TIMING);
+    });
+
+  const sheetAnimatedStyle = useAnimatedStyle(() => ({
+    top: translateY.value,
+  }));
+
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      translateY.value,
+      [0, collapsedY, sheetHeight],
+      [0.36, 0.3, 0],
+      Extrapolation.CLAMP,
+    ),
+  }));
 
   const threads: CommentThread[] = (() => {
     const items = thread.data?.items ?? [];
@@ -171,96 +262,118 @@ export function CommentsSheet({ activityId }: { activityId: string }) {
   const trimmedBody = body.trim();
 
   return (
-    <KeyboardAvoidingView
-      behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
-      style={styles.sheet}>
-      <View style={styles.header}>
-        <View style={styles.grabber} />
-        <Text accessibilityRole="header" selectable style={styles.title}>Comments</Text>
-      </View>
-
-      <FlatList
-        ref={listRef}
-        contentContainerStyle={[styles.listContent, threads.length === 0 && styles.emptyListContent]}
-        contentInsetAdjustmentBehavior="never"
-        data={threads}
-        extraData={visibleReplies}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-        keyExtractor={(item) => item.root.id}
-        ListEmptyComponent={emptyContent}
-        onScrollToIndexFailed={(info) => listRef.current?.scrollToOffset({
-          animated: true,
-          offset: Math.max(0, info.averageItemLength * info.index),
-        })}
-        renderItem={renderThread}
-        showsVerticalScrollIndicator={false}
-        style={styles.list}
+    <View style={styles.overlay}>
+      <Animated.View pointerEvents="none" style={[styles.backdrop, backdropAnimatedStyle]} />
+      <Pressable
+        accessibilityLabel="Close comments"
+        accessibilityRole="button"
+        onPress={dismissSheet}
+        style={StyleSheet.absoluteFill}
       />
 
-      <View style={[styles.composer, { paddingBottom: Math.max(16, insets.bottom) }]}>
-        {replyTarget && (
-          <View style={styles.replyingTo}>
-            <Text numberOfLines={1} style={styles.replyingToText}>
-              Replying to {replyTarget.authorName}
-            </Text>
-            <Pressable
-              accessibilityLabel="Cancel reply"
-              accessibilityRole="button"
-              hitSlop={8}
-              onPress={() => setReplyTarget(null)}
-              style={({ pressed }) => [styles.cancelReply, pressed && styles.pressed]}>
-              <XIcon color={Palette.muted} size={14} weight="bold" />
-            </Pressable>
-          </View>
-        )}
+      <Animated.View
+        entering={SlideInDown.duration(SHEET_TIMING.duration).easing(SHEET_TIMING.easing)}
+        pointerEvents="box-none"
+        style={[styles.sheetContainer, { top: insets.top }]}>
+        <Animated.View
+          accessibilityViewIsModal
+          onAccessibilityEscape={dismissSheet}
+          style={[styles.sheetFrame, sheetAnimatedStyle]}>
+          <KeyboardAvoidingView
+            behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}
+            style={styles.sheet}>
+            <GestureDetector gesture={panGesture}>
+              <Animated.View style={styles.header}>
+                <View style={styles.grabber} />
+                <Text accessibilityRole="header" selectable style={styles.title}>Comments</Text>
+              </Animated.View>
+            </GestureDetector>
 
-        {composerError && (
-          <Text accessibilityRole="alert" selectable style={styles.composerError}>{composerError}</Text>
-        )}
+            <FlatList
+              ref={listRef}
+              contentContainerStyle={[styles.listContent, threads.length === 0 && styles.emptyListContent]}
+              contentInsetAdjustmentBehavior="never"
+              data={threads}
+              extraData={visibleReplies}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              keyExtractor={(item) => item.root.id}
+              ListEmptyComponent={emptyContent}
+              onScrollToIndexFailed={(info) => listRef.current?.scrollToOffset({
+                animated: true,
+                offset: Math.max(0, info.averageItemLength * info.index),
+              })}
+              renderItem={renderThread}
+              showsVerticalScrollIndicator={false}
+              style={styles.list}
+            />
 
-        <View style={styles.composerRow}>
-          <CommentAvatar
-            avatarPath={profile?.avatar_path}
-            fallback={(profile?.display_name || profile?.username || '?')[0].toUpperCase()}
-            size={32}
-          />
-          <TextInput
-            ref={inputRef}
-            accessibilityLabel={replyTarget ? `Reply to ${replyTarget.authorName}` : 'Add a comment'}
-            editable={Boolean(thread.data) && !createComment.isPending}
-            maxLength={500}
-            multiline
-            onChangeText={(value) => {
-              if (createComment.error) createComment.reset();
-              setBody(value);
-            }}
-            placeholder={replyTarget ? `Reply to ${replyTarget.authorName}` : 'Add a comment'}
-            placeholderTextColor={Palette.muted}
-            style={styles.input}
-            value={body}
-          />
-          <Pressable
-            accessibilityLabel={replyTarget ? 'Send reply' : 'Send comment'}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !trimmedBody || createComment.isPending }}
-            disabled={!trimmedBody || createComment.isPending || !thread.data}
-            hitSlop={6}
-            onPress={() => void submit()}
-            style={({ pressed }) => [styles.sendButton, pressed && styles.pressed]}>
-            {createComment.isPending ? (
-              <ActivityIndicator color={Palette.brand} size="small" />
-            ) : (
-              <PaperPlaneRightIcon
-                color={trimmedBody && thread.data ? Palette.brand : Palette.border}
-                size={24}
-                weight="regular"
-              />
-            )}
-          </Pressable>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+            <View style={[styles.composer, { paddingBottom: Math.max(16, insets.bottom) }]}>
+              {replyTarget && (
+                <View style={styles.replyingTo}>
+                  <Text numberOfLines={1} style={styles.replyingToText}>
+                    Replying to {replyTarget.authorName}
+                  </Text>
+                  <Pressable
+                    accessibilityLabel="Cancel reply"
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={() => setReplyTarget(null)}
+                    style={({ pressed }) => [styles.cancelReply, pressed && styles.pressed]}>
+                    <XIcon color={Palette.muted} size={14} weight="bold" />
+                  </Pressable>
+                </View>
+              )}
+
+              {composerError && (
+                <Text accessibilityRole="alert" selectable style={styles.composerError}>{composerError}</Text>
+              )}
+
+              <View style={styles.composerRow}>
+                <CommentAvatar
+                  avatarPath={profile?.avatar_path}
+                  fallback={(profile?.display_name || profile?.username || '?')[0].toUpperCase()}
+                  size={32}
+                />
+                <TextInput
+                  ref={inputRef}
+                  accessibilityLabel={replyTarget ? `Reply to ${replyTarget.authorName}` : 'Add a comment'}
+                  editable={Boolean(thread.data) && !createComment.isPending}
+                  maxLength={500}
+                  multiline
+                  onChangeText={(value) => {
+                    if (createComment.error) createComment.reset();
+                    setBody(value);
+                  }}
+                  placeholder={replyTarget ? `Reply to ${replyTarget.authorName}` : 'Add a comment'}
+                  placeholderTextColor={Palette.muted}
+                  style={styles.input}
+                  value={body}
+                />
+                <Pressable
+                  accessibilityLabel={replyTarget ? 'Send reply' : 'Send comment'}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !trimmedBody || createComment.isPending }}
+                  disabled={!trimmedBody || createComment.isPending || !thread.data}
+                  hitSlop={6}
+                  onPress={() => void submit()}
+                  style={({ pressed }) => [styles.sendButton, pressed && styles.pressed]}>
+                  {createComment.isPending ? (
+                    <ActivityIndicator color={Palette.brand} size="small" />
+                  ) : (
+                    <PaperPlaneRightIcon
+                      color={trimmedBody && thread.data ? Palette.brand : Palette.border}
+                      size={24}
+                      weight="regular"
+                    />
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -373,6 +486,32 @@ function replyButtonLabel(remainingCount: number, hasVisibleReplies: boolean) {
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: '#000000',
+  },
+  sheetContainer: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1,
+    elevation: 1,
+  },
+  sheetFrame: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
   sheet: {
     flex: 1,
     overflow: 'hidden',
@@ -387,7 +526,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    gap: 16,
+    gap: 8,
     paddingTop: 24,
     paddingHorizontal: 24,
     paddingBottom: 24,

@@ -11,15 +11,10 @@ export default function AppLayout() {
       <Stack.Screen
         name="comments/[activityId]"
         options={{
-          contentStyle: { backgroundColor: Palette.canvas },
-          gestureEnabled: true,
-          presentation: 'formSheet',
-          sheetAllowedDetents: [0.75, 1],
-          sheetCornerRadius: 48,
-          sheetExpandsWhenScrolledToEdge: true,
-          sheetGrabberVisible: false,
-          sheetInitialDetentIndex: 0,
-          sheetLargestUndimmedDetentIndex: 'none',
+          animation: 'none',
+          contentStyle: { backgroundColor: 'transparent' },
+          gestureEnabled: false,
+          presentation: 'transparentModal',
         }}
       />
       <Stack.Screen

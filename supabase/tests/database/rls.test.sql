@@ -751,8 +751,8 @@ select is(
       from public.activity_events event
       where event.rating_id = '20000000-0000-0000-0000-000000000006'
     )),
-  3::bigint,
-  'home feed comment counts include roots but exclude replies'
+  4::bigint,
+  'home feed comment counts include roots and replies'
 );
 
 select is(

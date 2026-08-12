@@ -244,27 +244,27 @@ async function enrichSocialActivities(items: SocialActivity[], userId: string) {
   const listenNumbersPromise = ratingIds.length
     ? supabase.from('rating_listen_numbers').select('rating_id, listen_number').in('rating_id', ratingIds)
     : Promise.resolve({ data: [], error: null });
-  const rootCommentsPromise = supabase.from('comments').select('activity_event_id')
-    .in('activity_event_id', items.map((item) => item.id)).is('parent_comment_id', null);
-  const [likesResult, savesResult, ratingsResult, listenNumbersResult, rootCommentsResult] = await Promise.all([
+  const commentsPromise = supabase.from('comments').select('activity_event_id')
+    .in('activity_event_id', items.map((item) => item.id));
+  const [likesResult, savesResult, ratingsResult, listenNumbersResult, commentsResult] = await Promise.all([
     supabase.from('likes').select('activity_event_id').eq('user_id', userId).in('activity_event_id', items.map((item) => item.id)),
     supabase.from('listen_later_items').select('album_id').eq('user_id', userId).in('album_id', albumIds),
     supabase.from('ratings').select('album_id, value, created_at, id').eq('user_id', userId).in('album_id', albumIds)
       .order('created_at', { ascending: false }).order('id', { ascending: false }),
     listenNumbersPromise,
-    rootCommentsPromise,
+    commentsPromise,
   ]);
   if (likesResult.error) throw likesResult.error;
   if (savesResult.error) throw savesResult.error;
   if (ratingsResult.error) throw ratingsResult.error;
   if (listenNumbersResult.error) throw listenNumbersResult.error;
-  if (rootCommentsResult.error) throw rootCommentsResult.error;
+  if (commentsResult.error) throw commentsResult.error;
   const liked = new Set(likesResult.data.map((item) => item.activity_event_id));
   const saved = new Set(savesResult.data.map((item) => item.album_id));
   const ratings = new Map<string, number>();
   const listenNumbers = new Map(listenNumbersResult.data.map((item) => [item.rating_id, item.listen_number]));
   const commentCounts = new Map<string, number>();
-  rootCommentsResult.data.forEach((comment) => {
+  commentsResult.data.forEach((comment) => {
     commentCounts.set(comment.activity_event_id, (commentCounts.get(comment.activity_event_id) ?? 0) + 1);
   });
   ratingsResult.data.forEach((item) => {

@@ -10,6 +10,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AlbyButton } from '@/components/ui';
@@ -35,19 +36,21 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <ThemeProvider value={{
-            ...DefaultTheme,
-            colors: { ...DefaultTheme.colors, background: Palette.canvas, card: Palette.canvas, border: Palette.border, primary: Palette.brand, text: Palette.ink },
-          }}>
-            <StatusBar style="dark" />
-            <ProtectedNavigator />
-          </ThemeProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <ThemeProvider value={{
+              ...DefaultTheme,
+              colors: { ...DefaultTheme.colors, background: Palette.canvas, card: Palette.canvas, border: Palette.border, primary: Palette.brand, text: Palette.ink },
+            }}>
+              <StatusBar style="dark" />
+              <ProtectedNavigator />
+            </ThemeProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -80,6 +83,7 @@ function ProtectedNavigator() {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.canvas },
   recovery: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, backgroundColor: Palette.canvas },
   recoveryText: { maxWidth: 360, color: Palette.liked, fontFamily: Fonts.sans, fontSize: 14, lineHeight: 20, textAlign: 'center' },

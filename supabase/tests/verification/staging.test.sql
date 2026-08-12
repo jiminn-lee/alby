@@ -1,7 +1,7 @@
 begin;
 set local role postgres;
 set local search_path = public, extensions, auth, storage;
-select plan(24);
+select plan(25);
 select hasnt_column('public', 'albums', 'genres', 'staging albums do not expose genres');
 select has_column('public', 'albums', 'release_type', 'staging albums expose release types');
 select has_column('public', 'comments', 'parent_comment_id', 'staging comments support one-level replies');
@@ -134,6 +134,24 @@ select is(
   8::bigint,
   'staging has eight fixture-authored root comments'
 );
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"f17e0000-0000-4000-8000-000000000001","role":"authenticated"}',
+  true
+);
+select is(
+  (select comments_count
+    from public.get_home_feed(50)
+    where id = (
+      select event.id
+      from public.activity_events event
+      where event.rating_id = 'f17e1000-0000-4000-8000-000000000001'
+    )),
+  8::bigint,
+  'staging feed counts a root comment and all seven replies'
+);
+set local role postgres;
 select is(
   (select count(*) from public.comment_likes
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
