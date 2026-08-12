@@ -35,6 +35,7 @@ type PostBaseData = {
   likes: number;
   onLike?: (liked: boolean) => void;
   onOpenAlbum?: () => void;
+  onOpenComments?: () => void;
   time: string;
   user: string;
 };
@@ -101,6 +102,7 @@ export function RatingPost({ post }: { post: RatingPostData }) {
         initiallyLiked={post.initiallyLiked}
         likes={post.likes}
         onLike={post.onLike}
+        onOpenComments={post.onOpenComments}
         time={post.time}
       />
       {!pinned && <PostDivider />}
@@ -132,6 +134,7 @@ export function SavedPost({ post }: { post: SavedPostData }) {
         initiallyLiked={post.initiallyLiked}
         likes={post.likes}
         onLike={post.onLike}
+        onOpenComments={post.onOpenComments}
         time={post.time}
       />
       <PostDivider />
@@ -285,8 +288,9 @@ function EngagementFooter({
   initiallyLiked,
   likes,
   onLike,
+  onOpenComments,
   time,
-}: Pick<PostBaseData, 'album' | 'comments' | 'initiallyLiked' | 'likes' | 'onLike' | 'time'>) {
+}: Pick<PostBaseData, 'album' | 'comments' | 'initiallyLiked' | 'likes' | 'onLike' | 'onOpenComments' | 'time'>) {
   const [liked, setLiked] = useState(Boolean(initiallyLiked));
   const likeCount = likes + (liked === Boolean(initiallyLiked) ? 0 : liked ? 1 : -1);
 
@@ -313,6 +317,7 @@ function EngagementFooter({
           accessibilityLabel={`${comments} comments on ${album}`}
           accessibilityRole="button"
           hitSlop={12}
+          onPress={onOpenComments}
           style={({ pressed }) => [styles.engagementItem, pressed && styles.pressed]}>
           <ChatCircleIcon color={Palette.ink} size={13} weight="regular" />
           <Text style={styles.metaText}>{comments}</Text>

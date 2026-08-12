@@ -21,7 +21,7 @@ where id between '10000000-0000-0000-0000-000000000001'::uuid
 
 \ir fixtures.inc
 
-select plan(52);
+select plan(63);
 
 insert into auth.users (
   instance_id, id, aud, role, email, email_confirmed_at,
@@ -653,6 +653,131 @@ select is(
     where listen_later_item_id = '39000000-0000-0000-0000-000000000004'),
   1::bigint,
   'the delayed re-save has its own pending activity event'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+
+select lives_ok(
+  $$insert into public.comments (id, user_id, activity_event_id, body)
+    select
+      '49000000-0000-0000-0000-000000000010',
+      '00000000-0000-0000-0000-000000000001',
+      event.id,
+      'A root comment for reply tests.'
+    from public.activity_events event
+    where event.rating_id = '20000000-0000-0000-0000-000000000006'$$,
+  'a user can create a root comment on visible activity'
+);
+
+select lives_ok(
+  $$insert into public.comments (id, user_id, activity_event_id, parent_comment_id, body)
+    select
+      '49000000-0000-0000-0000-000000000011',
+      '00000000-0000-0000-0000-000000000001',
+      event.id,
+      '49000000-0000-0000-0000-000000000010',
+      'A valid one-level reply.'
+    from public.activity_events event
+    where event.rating_id = '20000000-0000-0000-0000-000000000006'$$,
+  'a user can reply to a root comment on the same activity'
+);
+
+select throws_ok(
+  $$insert into public.comments (user_id, activity_event_id, parent_comment_id, body)
+    select
+      '00000000-0000-0000-0000-000000000001',
+      event.id,
+      '49000000-0000-0000-0000-000000000011',
+      'Nested replies are not allowed.'
+    from public.activity_events event
+    where event.rating_id = '20000000-0000-0000-0000-000000000006'$$,
+  '23514',
+  'Replies must belong to a root comment.',
+  'a reply cannot use another reply as its parent'
+);
+
+select throws_ok(
+  $$insert into public.comments (user_id, activity_event_id, parent_comment_id, body)
+    select
+      '00000000-0000-0000-0000-000000000001',
+      event.id,
+      '49000000-0000-0000-0000-000000000010',
+      'Cross-activity replies are not allowed.'
+    from public.activity_events event
+    where event.rating_id = '20000000-0000-0000-0000-000000000007'$$,
+  '23514',
+  'Replies must belong to the same activity as their root comment.',
+  'a reply cannot move its root thread to another activity'
+);
+
+select lives_ok(
+  $$insert into public.comment_likes (user_id, comment_id)
+    values (
+      '00000000-0000-0000-0000-000000000001',
+      '49000000-0000-0000-0000-000000000011'
+    )$$,
+  'a user can like a visible reply'
+);
+
+select is(
+  (select count(*) from public.comment_likes
+    where user_id = '00000000-0000-0000-0000-000000000001'
+      and comment_id = '49000000-0000-0000-0000-000000000011'),
+  1::bigint,
+  'a comment like is readable on a visible reply'
+);
+
+select throws_ok(
+  $$insert into public.comment_likes (user_id, comment_id)
+    values (
+      '00000000-0000-0000-0000-000000000002',
+      '49000000-0000-0000-0000-000000000010'
+    )$$,
+  '42501',
+  null,
+  'a user cannot create a comment like for another user'
+);
+
+select is(
+  (select comments_count
+    from public.get_home_feed(50)
+    where id = (
+      select event.id
+      from public.activity_events event
+      where event.rating_id = '20000000-0000-0000-0000-000000000006'
+    )),
+  3::bigint,
+  'home feed comment counts include roots but exclude replies'
+);
+
+select is(
+  (select count(*) from public.comments
+    where parent_comment_id = '49000000-0000-0000-0000-000000000010'),
+  1::bigint,
+  'a root comment owns its direct replies'
+);
+
+select lives_ok(
+  $$delete from public.comments
+    where id = '49000000-0000-0000-0000-000000000010'$$,
+  'an author can delete their root comment'
+);
+
+select is(
+  (select count(*) from public.comments
+    where id in (
+      '49000000-0000-0000-0000-000000000010',
+      '49000000-0000-0000-0000-000000000011'
+    ))
+    + (select count(*) from public.comment_likes
+      where comment_id = '49000000-0000-0000-0000-000000000011'),
+  0::bigint,
+  'deleting a root cascades to replies and their likes'
 );
 
 select * from finish();

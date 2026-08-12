@@ -29,7 +29,7 @@ export function ExpandableNote({
       </Text>
 
       {expanded ? (
-        <Text style={style}>
+        <Text selectable style={style}>
           {note}
           <Text
             accessibilityLabel="Read less"
@@ -41,7 +41,7 @@ export function ExpandableNote({
         </Text>
       ) : (
         <View style={styles.collapsed}>
-          <Text numberOfLines={collapsedLines} style={style}>{note}</Text>
+          <Text numberOfLines={collapsedLines} selectable style={style}>{note}</Text>
           {overflowing && (
             <Pressable
               accessibilityLabel="Read more"
