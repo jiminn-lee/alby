@@ -1,16 +1,38 @@
 begin;
 set local role postgres;
 set local search_path = public, extensions, auth, storage;
-select plan(25);
+select plan(30);
 select hasnt_column('public', 'albums', 'genres', 'staging albums do not expose genres');
 select has_column('public', 'albums', 'release_type', 'staging albums expose release types');
+select has_table('public', 'album_catalog_sources', 'staging exposes provider-neutral album sources');
+select hasnt_column('public', 'albums', 'spotify_id', 'staging albums do not store Spotify IDs');
+select hasnt_column('public', 'albums', 'spotify_url', 'staging albums do not store Spotify URLs');
 select has_column('public', 'comments', 'parent_comment_id', 'staging comments support one-level replies');
 select has_table('public', 'comment_likes', 'staging has comment-level likes');
 select is(
   (select data_type from information_schema.columns
     where table_schema = 'public' and table_name = 'albums' and column_name = 'release_date'),
   'text',
-  'staging release dates preserve Spotify precision'
+  'staging release dates preserve catalog precision'
+);
+select is(
+  (select count(*) from public.album_catalog_sources
+    where provider = 'musicbrainz'
+      and external_id in (
+        '48117b90-a16e-34ca-a514-19c702df1158',
+        'f8f4167d-897c-4b25-a171-638374d1dfa4',
+        '18be804e-9b7c-4b19-b6af-3eae9dc752e9',
+        '4ddcc4fb-423b-4c98-9265-804071debce9'
+      )),
+  4::bigint,
+  'staging has all four tracked MusicBrainz albums'
+);
+select is(
+  (select count(*) from public.album_catalog_sources
+    where provider = 'spotify'
+      and external_id in ('0YNxRyJMnNXOfysgawFE8B', '0HhoqCRYpuH5sc9mlgCgrF')),
+  0::bigint,
+  'staging removed SS-POP 1 and 2000 TAPE'
 );
 select is(
   (select count(*) from auth.users
@@ -95,8 +117,8 @@ select is(
   (select count(*) from public.ratings
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  9::bigint,
-  'staging has nine fixture ratings'
+  6::bigint,
+  'staging has six fixture ratings'
 );
 select is(
   (select count(*) from public.listen_later_items
@@ -109,30 +131,30 @@ select is(
   (select count(*) from public.activity_events
     where actor_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  12::bigint,
-  'staging has twelve fixture activity events'
+  9::bigint,
+  'staging has nine fixture activity events'
 );
 select is(
   (select count(*) from public.likes
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  4::bigint,
-  'staging has four fixture-authored likes'
+  3::bigint,
+  'staging has three fixture-authored likes'
 );
 select is(
   (select count(*) from public.comments
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  19::bigint,
-  'staging has nineteen fixture-authored comments and replies'
+  17::bigint,
+  'staging has seventeen fixture-authored comments and replies'
 );
 select is(
   (select count(*) from public.comments
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid
       and parent_comment_id is null),
-  8::bigint,
-  'staging has eight fixture-authored root comments'
+  6::bigint,
+  'staging has six fixture-authored root comments'
 );
 set local role authenticated;
 select set_config(
@@ -156,8 +178,8 @@ select is(
   (select count(*) from public.comment_likes
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  12::bigint,
-  'staging has twelve fixture-authored comment likes'
+  10::bigint,
+  'staging has ten fixture-authored comment likes'
 );
 select is(
   (select count(*) from public.follows

@@ -1,14 +1,24 @@
 begin;
 set local role postgres;
 set local search_path = public, extensions, auth, storage;
-select plan(8);
+select plan(12);
 select hasnt_column('public', 'albums', 'genres', 'production albums do not expose genres');
 select has_column('public', 'albums', 'release_type', 'production albums expose release types');
+select has_table('public', 'album_catalog_sources', 'production exposes provider-neutral album sources');
+select hasnt_column('public', 'albums', 'spotify_id', 'production albums do not store Spotify IDs');
+select hasnt_column('public', 'albums', 'spotify_url', 'production albums do not store Spotify URLs');
 select is(
   (select data_type from information_schema.columns
     where table_schema = 'public' and table_name = 'albums' and column_name = 'release_date'),
   'text',
-  'production release dates preserve Spotify precision'
+  'production release dates preserve catalog precision'
+);
+select is(
+  (select count(*) from public.album_catalog_sources
+    where provider = 'spotify'
+      and external_id in ('0YNxRyJMnNXOfysgawFE8B', '0HhoqCRYpuH5sc9mlgCgrF')),
+  0::bigint,
+  'production does not contain SS-POP 1 or 2000 TAPE'
 );
 select is(
   (select count(*) from auth.users

@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -6,6 +5,7 @@ import { Fonts, Palette, PressedOpacity } from '@/constants/theme';
 import { getMediaUrl } from '@/lib/media';
 import type { Album } from '@/types/domain';
 
+import { AlbumArtwork } from './album-artwork';
 import { RatingDisc } from './rating-disc';
 
 export function AlbumListItem({ album, rating, subtitle }: { album: Album; rating?: number | null; subtitle?: string }) {
@@ -14,7 +14,7 @@ export function AlbumListItem({ album, rating, subtitle }: { album: Album; ratin
   return (
     <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/albums/[albumId]', params: { albumId: album.id } })}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-      {cover && <Image source={cover} style={styles.cover} />}
+      <AlbumArtwork source={cover} style={styles.cover} />
       <View style={styles.copy}>
         <Text numberOfLines={1} style={styles.artist}>{album.artist_name}</Text>
         <Text numberOfLines={1} style={styles.title}>{album.title}</Text>

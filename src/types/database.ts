@@ -112,6 +112,45 @@ export type Database = {
           },
         ]
       }
+      album_catalog_sources: {
+        Row: {
+          album_id: string
+          created_at: string
+          external_id: string
+          external_url: string | null
+          provider: string
+        }
+        Insert: {
+          album_id: string
+          created_at?: string
+          external_id: string
+          external_url?: string | null
+          provider: string
+        }
+        Update: {
+          album_id?: string
+          created_at?: string
+          external_id?: string
+          external_url?: string | null
+          provider?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "album_catalog_sources_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "album_catalog_sources_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "public_album_aggregates"
+            referencedColumns: ["album_id"]
+          },
+        ]
+      }
       albums: {
         Row: {
           artist_name: string
@@ -120,8 +159,6 @@ export type Database = {
           id: string
           release_date: string | null
           release_type: Database["public"]["Enums"]["album_release_type"]
-          spotify_id: string | null
-          spotify_url: string | null
           title: string
           track_count: number | null
           updated_at: string
@@ -133,8 +170,6 @@ export type Database = {
           id?: string
           release_date?: string | null
           release_type?: Database["public"]["Enums"]["album_release_type"]
-          spotify_id?: string | null
-          spotify_url?: string | null
           title: string
           track_count?: number | null
           updated_at?: string
@@ -146,11 +181,24 @@ export type Database = {
           id?: string
           release_date?: string | null
           release_type?: Database["public"]["Enums"]["album_release_type"]
-          spotify_id?: string | null
-          spotify_url?: string | null
           title?: string
           track_count?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      catalog_request_slots: {
+        Row: {
+          next_allowed_at: string
+          provider: string
+        }
+        Insert: {
+          next_allowed_at: string
+          provider: string
+        }
+        Update: {
+          next_allowed_at?: string
+          provider?: string
         }
         Relationships: []
       }
@@ -512,21 +560,30 @@ export type Database = {
         Args: { target_user_id: string; viewer_id?: string }
         Returns: boolean
       }
-      materialize_spotify_album: {
+      materialize_catalog_album: {
         Args: {
           album_artist_name: string
           album_cover_path: string
           album_release_date: string
           album_release_type: Database["public"]["Enums"]["album_release_type"]
-          album_spotify_url: string
           album_title: string
           album_track_count: number
-          spotify_album_id: string
+          catalog_external_id: string
+          catalog_external_url: string
+          catalog_provider: string
         }
         Returns: {
           album_id: string
           outcome: string
         }[]
+      }
+      reserve_catalog_request_slot: {
+        Args: {
+          catalog_provider: string
+          maximum_wait_ms?: number
+          minimum_interval_ms?: number
+        }
+        Returns: number
       }
     }
     Enums: {

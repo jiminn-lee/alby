@@ -18,7 +18,7 @@
     "expo-env.d.ts"
   ],
   "exclude": [
-    "supabase/functions/spotify-albums/**",
+    "supabase/functions/musicbrainz-albums/**",
     "supabase/functions/tests/**"
   ]
 }

@@ -5,6 +5,6 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*", "supabase/functions/spotify-albums/**", "supabase/functions/tests/**"],
+    ignores: ["dist/*", "supabase/functions/musicbrainz-albums/**", "supabase/functions/tests/**"],
   }
 ]);

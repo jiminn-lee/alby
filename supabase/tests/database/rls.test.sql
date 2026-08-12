@@ -21,7 +21,7 @@ where id between '10000000-0000-0000-0000-000000000001'::uuid
 
 \ir fixtures.inc
 
-select plan(63);
+select plan(73);
 
 insert into auth.users (
   instance_id, id, aud, role, email, email_confirmed_at,
@@ -75,11 +75,31 @@ select has_column(
   'albums expose a release type'
 );
 
+select has_table(
+  'public',
+  'album_catalog_sources',
+  'albums expose provider-neutral catalog sources'
+);
+
+select hasnt_column(
+  'public',
+  'albums',
+  'spotify_id',
+  'albums no longer store Spotify IDs directly'
+);
+
+select hasnt_column(
+  'public',
+  'albums',
+  'spotify_url',
+  'albums no longer store Spotify URLs directly'
+);
+
 select is(
   (select data_type from information_schema.columns
     where table_schema = 'public' and table_name = 'albums' and column_name = 'release_date'),
   'text',
-  'album release dates preserve Spotify precision as text'
+  'album release dates preserve catalog precision as text'
 );
 
 select is(
@@ -99,26 +119,81 @@ select throws_ok(
 select ok(
   not has_function_privilege(
       'authenticated',
-      'public.materialize_spotify_album(text,text,text,text,text,integer,public.album_release_type,text)',
+      'public.materialize_catalog_album(text,text,text,text,text,text,text,integer,public.album_release_type)',
       'EXECUTE'
     )
     and has_function_privilege(
       'service_role',
-      'public.materialize_spotify_album(text,text,text,text,text,integer,public.album_release_type,text)',
+      'public.materialize_catalog_album(text,text,text,text,text,text,text,integer,public.album_release_type)',
       'EXECUTE'
     ),
   'only the service role can invoke catalog materialization'
 );
 
+select ok(
+  not has_function_privilege(
+      'authenticated',
+      'public.reserve_catalog_request_slot(text,integer,integer)',
+      'EXECUTE'
+    )
+    and has_function_privilege(
+      'service_role',
+      'public.reserve_catalog_request_slot(text,integer,integer)',
+      'EXECUTE'
+    ),
+  'only the service role can reserve catalog request slots'
+);
+
+select ok(
+  has_table_privilege('authenticated', 'public.album_catalog_sources', 'SELECT')
+    and not has_table_privilege('authenticated', 'public.album_catalog_sources', 'INSERT')
+    and has_table_privilege('service_role', 'public.album_catalog_sources', 'SELECT')
+    and has_table_privilege('service_role', 'public.album_catalog_sources', 'INSERT')
+    and has_table_privilege('service_role', 'public.album_catalog_sources', 'UPDATE')
+    and has_table_privilege('service_role', 'public.album_catalog_sources', 'DELETE'),
+  'catalog sources are authenticated-readable and service-role-writable'
+);
+
+delete from public.catalog_request_slots where provider = 'musicbrainz-test';
+
+select is(
+  public.reserve_catalog_request_slot('musicbrainz-test', 1100, 5000),
+  0,
+  'the first catalog request receives the current request slot'
+);
+
+select ok(
+  (select reservation.wait_ms between 0 and 1100
+      and slot.next_allowed_at > clock_timestamp()
+    from (
+      select public.reserve_catalog_request_slot('musicbrainz-test', 1100, 5000) as wait_ms
+    ) reservation
+    join public.catalog_request_slots slot on slot.provider = 'musicbrainz-test'),
+  'the next catalog request reserves a future slot with a bounded wait'
+);
+
+select is(
+  public.reserve_catalog_request_slot('musicbrainz-test', 1100, 0),
+  -1,
+  'catalog requests beyond the bounded queue are rejected'
+);
+
 insert into public.albums (
-  id, spotify_id, title, artist_name, release_date, track_count
+  id, title, artist_name, release_date, track_count
 ) values (
   '50000000-0000-0000-0000-000000000001',
-  'legacy-catalog-id',
   'Legacy Match',
   'Catalog Artist',
   '1981-01-01',
   4
+);
+
+insert into public.album_catalog_sources (album_id, provider, external_id, external_url)
+values (
+  '50000000-0000-0000-0000-000000000001',
+  'spotify',
+  'legacy-catalog-id',
+  'https://open.spotify.com/search/legacy-catalog-id'
 );
 
 insert into public.ratings (
@@ -134,15 +209,16 @@ insert into public.ratings (
 
 create temporary table legacy_materialization_result on commit drop as
 select *
-from public.materialize_spotify_album(
-  '1234567890123456789012',
+from public.materialize_catalog_album(
+  'musicbrainz',
+  '12345678-1234-4234-8234-123456789012',
+  'https://musicbrainz.org/release-group/12345678-1234-4234-8234-123456789012',
   'legacy match',
   'catalog artist',
-  'https://i.scdn.co/image/legacy',
+  'https://coverartarchive.org/release-group/12345678-1234-4234-8234-123456789012/front-500',
   '1981',
-  5,
-  'ep',
-  'https://open.spotify.com/album/1234567890123456789012'
+  null,
+  'ep'
 );
 
 select is(
@@ -158,23 +234,24 @@ select is(
 );
 
 select is(
-  (select release_date || ':' || release_type::text
+  (select release_date || ':' || track_count::text || ':' || release_type::text
     from public.albums where id = '50000000-0000-0000-0000-000000000001'),
-  '1981:ep',
-  'materialization preserves a partial date and inferred EP type'
+  '1981:4:ep',
+  'materialization preserves a partial date, legacy track count, and EP type'
 );
 
 create temporary table new_materialization_result on commit drop as
 select *
-from public.materialize_spotify_album(
-  'abcdefghijklmnopqrstuv',
+from public.materialize_catalog_album(
+  'musicbrainz',
+  '11111111-1111-4111-8111-111111111111',
+  'https://musicbrainz.org/release-group/11111111-1111-4111-8111-111111111111',
   'New Catalog Album',
   'Catalog Artist',
-  null,
+  'https://coverartarchive.org/release-group/11111111-1111-4111-8111-111111111111/front-500',
   '2026-08',
-  10,
-  'album',
-  'https://open.spotify.com/album/abcdefghijklmnopqrstuv'
+  null,
+  'album'
 );
 
 select is(
@@ -183,23 +260,33 @@ select is(
   'materialization creates a missing canonical album'
 );
 
+select ok(
+  (select album.track_count is null
+    from new_materialization_result result
+    join public.albums album on album.id = result.album_id),
+  'new MusicBrainz albums retain an unknown track count'
+);
+
 create temporary table repeated_materialization_result on commit drop as
 select *
-from public.materialize_spotify_album(
-  'abcdefghijklmnopqrstuv',
+from public.materialize_catalog_album(
+  'musicbrainz',
+  '11111111-1111-4111-8111-111111111111',
+  'https://musicbrainz.org/release-group/11111111-1111-4111-8111-111111111111',
   'New Catalog Album',
   'Catalog Artist',
-  null,
+  'https://coverartarchive.org/release-group/11111111-1111-4111-8111-111111111111/front-500',
   '2026-08',
-  10,
-  'album',
-  'https://open.spotify.com/album/abcdefghijklmnopqrstuv'
+  null,
+  'album'
 );
 
 select is(
-  (select result.outcome || ':' || count(album.id)::text
+  (select result.outcome || ':' || count(source.album_id)::text
     from repeated_materialization_result result
-    join public.albums album on album.spotify_id = 'abcdefghijklmnopqrstuv'
+    join public.album_catalog_sources source on source.album_id = result.album_id
+    where source.provider = 'musicbrainz'
+      and source.external_id = '11111111-1111-4111-8111-111111111111'
     group by result.outcome),
   'existing:1',
   'repeat materialization returns the single existing album'
@@ -210,6 +297,14 @@ select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
+);
+
+select is(
+  (select count(*) from public.album_catalog_sources
+    where provider = 'musicbrainz'
+      and external_id = '12345678-1234-4234-8234-123456789012'),
+  1::bigint,
+  'authenticated users can read catalog sources'
 );
 
 select is(

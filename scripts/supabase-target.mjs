@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -11,7 +11,6 @@ const generatedTypesPath = path.join(projectRoot, 'src', 'types', 'database.ts')
 const stagingFixtureCleanupPath = path.join(projectRoot, 'supabase', 'cleanup', 'staging-fixtures.sql');
 const stagingFixtureSeedPath = path.join(projectRoot, 'supabase', 'fixtures', 'staging-social.sql');
 const supabaseConfigPath = path.join(projectRoot, 'supabase', 'config.toml');
-const spotifySecretPath = (targetName) => path.join(projectRoot, 'supabase', `.env.spotify.${targetName}.local`);
 const stagingFixtureStoragePaths = [
   'ss:///media/albums/album-brat.png',
   'ss:///media/albums/album-i-barely-know-her.png',
@@ -165,25 +164,29 @@ switch (action) {
     console.log(`Wrote ${path.relative(projectRoot, generatedTypesPath)} from staging.`);
     break;
   }
-  case 'spotify-secrets': {
+  case 'musicbrainz-deploy':
     requireLinkedTarget(target);
     requireConfirmation(target);
-    const secretPath = spotifySecretPath(target);
-    if (!existsSync(secretPath)) {
-      fail(`Missing ${path.relative(projectRoot, secretPath)}. Copy supabase/.env.spotify.example and add this target's credentials.`);
-    }
-    runSupabase(['secrets', 'set', '--project-ref', projectRefFor(target), '--env-file', secretPath]);
+    runSupabase(['functions', 'deploy', 'musicbrainz-albums', '--project-ref', projectRefFor(target), '--use-api']);
     break;
-  }
-  case 'spotify-deploy':
-    requireLinkedTarget(target);
-    requireConfirmation(target);
-    runSupabase(['functions', 'deploy', 'spotify-albums', '--project-ref', projectRefFor(target), '--use-api']);
-    break;
-  case 'spotify-list':
+  case 'musicbrainz-list':
     requireLinkedTarget(target);
     runSupabase(['functions', 'list', '--project-ref', projectRefFor(target)]);
     break;
+  case 'retire-spotify':
+    requireLinkedTarget(target);
+    requireConfirmation(target);
+    runSupabase(['functions', 'delete', 'spotify-albums', '--project-ref', projectRefFor(target), '--yes']);
+    runSupabase([
+      'secrets',
+      'unset',
+      'SPOTIFY_CLIENT_ID',
+      'SPOTIFY_CLIENT_SECRET',
+      'SPOTIFY_MARKET',
+      '--project-ref',
+      projectRefFor(target),
+    ]);
+    break;
   default:
-    fail('Usage: node scripts/supabase-target.mjs <link|migrations|dry-run|push|purge-fixtures|seed-fixtures|config|test|verify|lint|types|spotify-secrets|spotify-deploy|spotify-list> <staging|production>');
+    fail('Usage: node scripts/supabase-target.mjs <link|migrations|dry-run|push|purge-fixtures|seed-fixtures|config|test|verify|lint|types|musicbrainz-deploy|musicbrainz-list|retire-spotify> <staging|production>');
 }
