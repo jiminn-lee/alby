@@ -1,16 +1,113 @@
 begin;
 set local role postgres;
 set local search_path = public, extensions, auth, storage;
-select plan(25);
+select plan(38);
 select hasnt_column('public', 'albums', 'genres', 'staging albums do not expose genres');
 select has_column('public', 'albums', 'release_type', 'staging albums expose release types');
+select has_table('public', 'album_catalog_sources', 'staging exposes provider-neutral album sources');
+select has_table('public', 'catalog_genres', 'staging exposes provider-neutral catalog genres');
+select has_table('public', 'album_genres', 'staging exposes normalized album genres');
+select has_column('public', 'album_catalog_sources', 'genres_synced_at', 'staging tracks catalog genre synchronization');
+select hasnt_column('public', 'albums', 'spotify_id', 'staging albums do not store Spotify IDs');
+select hasnt_column('public', 'albums', 'spotify_url', 'staging albums do not store Spotify URLs');
 select has_column('public', 'comments', 'parent_comment_id', 'staging comments support one-level replies');
 select has_table('public', 'comment_likes', 'staging has comment-level likes');
 select is(
   (select data_type from information_schema.columns
     where table_schema = 'public' and table_name = 'albums' and column_name = 'release_date'),
   'text',
-  'staging release dates preserve Spotify precision'
+  'staging release dates preserve catalog precision'
+);
+select is(
+  (select count(*) from public.album_catalog_sources
+    where provider = 'musicbrainz'
+      and external_id in (
+        '48117b90-a16e-34ca-a514-19c702df1158',
+        'f8f4167d-897c-4b25-a171-638374d1dfa4',
+        '18be804e-9b7c-4b19-b6af-3eae9dc752e9',
+        '4ddcc4fb-423b-4c98-9265-804071debce9'
+      )),
+  4::bigint,
+  'staging has all four tracked MusicBrainz albums'
+);
+select is(
+  (select count(*) from public.album_catalog_sources
+    where provider = 'musicbrainz'
+      and genres_synced_at is not null
+      and external_id in (
+        '48117b90-a16e-34ca-a514-19c702df1158',
+        'f8f4167d-897c-4b25-a171-638374d1dfa4',
+        '18be804e-9b7c-4b19-b6af-3eae9dc752e9',
+        '4ddcc4fb-423b-4c98-9265-804071debce9',
+        'a3e9a60a-90c0-4830-a09e-5c413e2ebdce'
+      )),
+  5::bigint,
+  'staging confirms genre synchronization for all five existing MusicBrainz albums'
+);
+select is(
+  (select string_agg(genre.name || ':' || assignment.vote_count, ',' order by assignment.rank)
+    from public.album_catalog_sources source
+    join public.album_genres assignment
+      on assignment.album_id = source.album_id
+     and assignment.provider = source.provider
+    join public.catalog_genres genre
+      on genre.provider = assignment.provider
+     and genre.external_id = assignment.genre_external_id
+    where source.provider = 'musicbrainz'
+      and source.external_id = '48117b90-a16e-34ca-a514-19c702df1158'),
+  'house:20,electronic:14,french house:8,progressive house:4,dance:3',
+  'Discovery has the verified ranked five-genre snapshot'
+);
+select is(
+  (select string_agg(genre.name || ':' || assignment.vote_count, ',' order by assignment.rank)
+    from public.album_catalog_sources source
+    join public.album_genres assignment
+      on assignment.album_id = source.album_id
+     and assignment.provider = source.provider
+    join public.catalog_genres genre
+      on genre.provider = assignment.provider
+     and genre.external_id = assignment.genre_external_id
+    where source.provider = 'musicbrainz'
+      and source.external_id = 'f8f4167d-897c-4b25-a171-638374d1dfa4'),
+  'contemporary r&b:3,alternative r&b:2,pop:1,r&b:1',
+  'channel ORANGE has the verified ranked four-genre snapshot'
+);
+select is(
+  (select count(*)
+    from public.album_catalog_sources source
+    where source.provider = 'musicbrainz'
+      and source.external_id in (
+        '18be804e-9b7c-4b19-b6af-3eae9dc752e9',
+        '4ddcc4fb-423b-4c98-9265-804071debce9',
+        'a3e9a60a-90c0-4830-a09e-5c413e2ebdce'
+      )
+      and source.genres_synced_at is not null
+      and not exists (
+        select 1
+        from public.album_genres assignment
+        where assignment.album_id = source.album_id
+          and assignment.provider = source.provider
+      )),
+  3::bigint,
+  'SS-POP 3, the Effie EP, and Sweet Boy have confirmed-empty genre snapshots'
+);
+select is(
+  (select count(*)
+    from (
+      select album_id, provider
+      from public.album_genres
+      group by album_id, provider
+      having count(*) > 5
+    ) over_limit),
+  0::bigint,
+  'staging albums never exceed five genres per provider'
+);
+select is(
+  (select count(*) from public.album_catalog_sources
+    where provider = 'spotify'
+      and external_id in ('0YNxRyJMnNXOfysgawFE8B', '0HhoqCRYpuH5sc9mlgCgrF')),
+  0::bigint,
+  'staging removed SS-POP 1 and 2000 TAPE'
 );
 select is(
   (select count(*) from auth.users
@@ -95,8 +192,8 @@ select is(
   (select count(*) from public.ratings
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  9::bigint,
-  'staging has nine fixture ratings'
+  6::bigint,
+  'staging has six fixture ratings'
 );
 select is(
   (select count(*) from public.listen_later_items
@@ -109,30 +206,30 @@ select is(
   (select count(*) from public.activity_events
     where actor_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  12::bigint,
-  'staging has twelve fixture activity events'
+  9::bigint,
+  'staging has nine fixture activity events'
 );
 select is(
   (select count(*) from public.likes
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  4::bigint,
-  'staging has four fixture-authored likes'
+  3::bigint,
+  'staging has three fixture-authored likes'
 );
 select is(
   (select count(*) from public.comments
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  19::bigint,
-  'staging has nineteen fixture-authored comments and replies'
+  17::bigint,
+  'staging has seventeen fixture-authored comments and replies'
 );
 select is(
   (select count(*) from public.comments
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid
       and parent_comment_id is null),
-  8::bigint,
-  'staging has eight fixture-authored root comments'
+  6::bigint,
+  'staging has six fixture-authored root comments'
 );
 set local role authenticated;
 select set_config(
@@ -156,8 +253,8 @@ select is(
   (select count(*) from public.comment_likes
     where user_id between 'f17e0000-0000-4000-8000-000000000001'::uuid
       and 'f17e0000-0000-4000-8000-000000000003'::uuid),
-  12::bigint,
-  'staging has twelve fixture-authored comment likes'
+  10::bigint,
+  'staging has ten fixture-authored comment likes'
 );
 select is(
   (select count(*) from public.follows

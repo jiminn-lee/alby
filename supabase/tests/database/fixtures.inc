@@ -51,20 +51,20 @@ from (values
 where profile.id = seed.id;
 
 insert into public.albums (
-  id, spotify_id, title, artist_name, cover_path, release_date, track_count, spotify_url, created_at, updated_at
+  id, title, artist_name, cover_path, release_date, track_count, created_at, updated_at
 ) values
-  ('10000000-0000-0000-0000-000000000001', '7ycBtnsMtyVbbwTfJwRjSP', 'To Pimp a Butterfly', 'Kendrick Lamar', 'albums/album-to-pimp-a-butterfly.png', '2015-03-15', 16, 'https://open.spotify.com/album/7ycBtnsMtyVbbwTfJwRjSP', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000002', 'rest-in-bass', 'REST IN BASS', 'Che', 'albums/album-rest-in-bass.png', '2025-05-16', 13, 'https://open.spotify.com/search/REST%20IN%20BASS%20Che', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000003', '2lIZef4lzdvZkiiCzvPKj7', 'BRAT', 'Charli xcx', 'albums/album-brat.png', '2024-06-07', 15, 'https://open.spotify.com/album/2lIZef4lzdvZkiiCzvPKj7', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000004', 'i-barely-know-her', 'I Barely Know Her', 'sombr', 'albums/album-i-barely-know-her.png', '2025-08-22', 10, 'https://open.spotify.com/search/I%20Barely%20Know%20Her%20sombr', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000005', 'blonde', 'Blonde', 'Frank Ocean', 'albums/album-brat.png', '2016-08-20', 17, 'https://open.spotify.com/search/Blonde%20Frank%20Ocean', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000006', 'ants-from-up-there', 'Ants From Up There', 'Black Country, New Road', 'albums/album-rest-in-bass.png', '2022-02-04', 10, 'https://open.spotify.com/search/Ants%20From%20Up%20There', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000007', 'songs-in-the-key-of-life', 'Songs in the Key of Life', 'Stevie Wonder', 'albums/album-to-pimp-a-butterfly.png', '1976-09-28', 21, 'https://open.spotify.com/search/Songs%20in%20the%20Key%20of%20Life', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000008', 'fetch-the-bolt-cutters', 'Fetch the Bolt Cutters', 'Fiona Apple', 'albums/album-i-barely-know-her.png', '2020-04-17', 13, 'https://open.spotify.com/search/Fetch%20the%20Bolt%20Cutters', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000009', 'imaginal-disk', 'Imaginal Disk', 'Magdalena Bay', 'albums/album-brat.png', '2024-08-23', 15, 'https://open.spotify.com/search/Imaginal%20Disk', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000010', 'lahai', 'Lahai', 'Sampha', 'albums/album-rest-in-bass.png', '2023-10-20', 14, 'https://open.spotify.com/search/Lahai%20Sampha', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000011', 'titanic-rising', 'Titanic Rising', 'Weyes Blood', 'albums/album-i-barely-know-her.png', '2019-04-05', 10, 'https://open.spotify.com/search/Titanic%20Rising', '2025-06-01', '2025-06-01'),
-  ('10000000-0000-0000-0000-000000000012', 'heaven-or-las-vegas', 'Heaven or Las Vegas', 'Cocteau Twins', 'albums/album-to-pimp-a-butterfly.png', '1990-09-17', 10, 'https://open.spotify.com/search/Heaven%20or%20Las%20Vegas', '2025-06-01', '2025-06-01');
+  ('10000000-0000-0000-0000-000000000001', 'To Pimp a Butterfly', 'Kendrick Lamar', 'albums/album-to-pimp-a-butterfly.png', '2015-03-15', 16, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000002', 'REST IN BASS', 'Che', 'albums/album-rest-in-bass.png', '2025-05-16', 13, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000003', 'BRAT', 'Charli xcx', 'albums/album-brat.png', '2024-06-07', 15, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000004', 'I Barely Know Her', 'sombr', 'albums/album-i-barely-know-her.png', '2025-08-22', 10, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000005', 'Blonde', 'Frank Ocean', 'albums/album-brat.png', '2016-08-20', 17, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000006', 'Ants From Up There', 'Black Country, New Road', 'albums/album-rest-in-bass.png', '2022-02-04', 10, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000007', 'Songs in the Key of Life', 'Stevie Wonder', 'albums/album-to-pimp-a-butterfly.png', '1976-09-28', 21, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000008', 'Fetch the Bolt Cutters', 'Fiona Apple', 'albums/album-i-barely-know-her.png', '2020-04-17', 13, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000009', 'Imaginal Disk', 'Magdalena Bay', 'albums/album-brat.png', '2024-08-23', 15, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000010', 'Lahai', 'Sampha', 'albums/album-rest-in-bass.png', '2023-10-20', 14, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000011', 'Titanic Rising', 'Weyes Blood', 'albums/album-i-barely-know-her.png', '2019-04-05', 10, '2025-06-01', '2025-06-01'),
+  ('10000000-0000-0000-0000-000000000012', 'Heaven or Las Vegas', 'Cocteau Twins', 'albums/album-to-pimp-a-butterfly.png', '1990-09-17', 10, '2025-06-01', '2025-06-01');
 
 insert into public.follows (follower_id, followed_id, created_at) values
   ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', '2025-06-04'),

@@ -1,19 +1,20 @@
-import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
-import { SpotifyLogoIcon } from 'phosphor-react-native/src/icons/SpotifyLogo';
+import { DatabaseIcon } from 'phosphor-react-native/src/icons/Database';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Fonts, Palette, PressedOpacity } from '@/constants/theme';
-import type { SpotifyAlbumSearchResult } from '@/types/spotify';
+import type { MusicBrainzAlbumSearchResult } from '@/types/musicbrainz';
+
+import { AlbumArtwork } from './album-artwork';
 
 type Props = {
-  album: SpotifyAlbumSearchResult;
+  album: MusicBrainzAlbumSearchResult;
   busy: boolean;
   disabled: boolean;
   onSelect: () => void;
 };
 
-export function SpotifyAlbumResult({ album, busy, disabled, onSelect }: Props) {
+export function MusicBrainzAlbumResult({ album, busy, disabled, onSelect }: Props) {
   const year = album.releaseDate?.slice(0, 4);
   const metadata = [year, album.releaseType === 'ep' ? 'EP' : 'Album'].filter(Boolean).join(' • ');
 
@@ -25,9 +26,7 @@ export function SpotifyAlbumResult({ album, busy, disabled, onSelect }: Props) {
         disabled={disabled}
         onPress={onSelect}
         style={({ pressed }) => [styles.albumButton, pressed && styles.pressed, disabled && styles.disabled]}>
-        {album.coverUrl ? (
-          <Image contentFit="contain" source={album.coverUrl} style={styles.cover} />
-        ) : <View style={styles.coverPlaceholder} />}
+        <AlbumArtwork source={album.coverUrl} style={styles.cover} />
         <View style={styles.copy}>
           <Text numberOfLines={1} style={styles.artist}>{album.artistName}</Text>
           <Text numberOfLines={1} style={styles.title}>{album.title}</Text>
@@ -36,13 +35,13 @@ export function SpotifyAlbumResult({ album, busy, disabled, onSelect }: Props) {
         {busy ? <ActivityIndicator color={Palette.brand} size="small" /> : null}
       </Pressable>
       <Pressable
-        accessibilityLabel={`Open ${album.title} on Spotify`}
+        accessibilityLabel={`View ${album.title} on MusicBrainz`}
         accessibilityRole="link"
         hitSlop={8}
-        onPress={() => void Linking.openURL(album.spotifyUrl)}
-        style={({ pressed }) => [styles.spotifyLink, pressed && styles.pressed]}>
-        <SpotifyLogoIcon color={Palette.spotify} size={16} weight="fill" />
-        <Text style={styles.spotifyText}>Spotify</Text>
+        onPress={() => void Linking.openURL(album.musicBrainzUrl)}
+        style={({ pressed }) => [styles.sourceLink, pressed && styles.pressed]}>
+        <DatabaseIcon color={Palette.brand} size={15} />
+        <Text style={styles.sourceText}>MusicBrainz</Text>
       </Pressable>
     </View>
   );
@@ -52,13 +51,12 @@ const styles = StyleSheet.create({
   row: { borderBottomWidth: 1, borderBottomColor: Palette.border, paddingVertical: 10 },
   albumButton: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12 },
   cover: { width: 62, height: 62, borderWidth: 1, borderColor: Palette.border, backgroundColor: '#FFFFFF' },
-  coverPlaceholder: { width: 62, height: 62, borderWidth: 1, borderColor: Palette.border, backgroundColor: Palette.border },
   copy: { flex: 1, minWidth: 0, gap: 2 },
   artist: { color: Palette.muted, fontFamily: Fonts.sans, fontSize: 11 },
   title: { color: Palette.ink, fontFamily: Fonts.semibold, fontSize: 16 },
   metadata: { color: Palette.muted, fontFamily: Fonts.sans, fontSize: 11 },
-  spotifyLink: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 74, marginTop: 4, minHeight: 24 },
-  spotifyText: { color: Palette.muted, fontFamily: Fonts.medium, fontSize: 10 },
+  sourceLink: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 74, marginTop: 4, minHeight: 24 },
+  sourceText: { color: Palette.muted, fontFamily: Fonts.medium, fontSize: 10 },
   disabled: { opacity: 0.55 },
   pressed: { opacity: PressedOpacity },
 });

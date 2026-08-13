@@ -4,7 +4,7 @@
 
 | Target | Supabase project | Persistent data | App callbacks |
 | --- | --- | --- | --- |
-| Staging | `alby-staging` | Legitimate OAuth users, Spotify-created catalog data, and the explicit non-loginable social fixture set | `alby-dev://auth/callback`, `alby-staging://auth/callback` |
+| Staging | `alby-staging` | Legitimate OAuth users, MusicBrainz-created catalog data, and the explicit non-loginable social fixture set | `alby-dev://auth/callback`, `alby-staging://auth/callback` |
 | Production | `alby-production` | Legitimate production data only; tracked mocks are forbidden | `alby://auth/callback` |
 
 Development and preview EAS environments use staging. The production EAS environment uses production. `app.config.ts` rejects a build when its app identity, `EXPO_PUBLIC_APP_ENV`, and Supabase project host do not agree.
@@ -15,24 +15,21 @@ Google is the active provider for this milestone on native iOS and Android. Web 
 
 ## OAuth-first data baseline
 
-Persistent environments do not receive fixture accounts, albums, activity, or media from `seed.sql`. Google creates Auth users, `public.handle_new_user()` creates their profiles from provider metadata, and users complete a unique username in the app. Album rows are created only when an authenticated user selects a Spotify result.
+Persistent environments do not receive fixture accounts, albums, activity, or media from `seed.sql`. Google creates Auth users, `public.handle_new_user()` creates their profiles from provider metadata, and users complete a unique username in the app. Album rows are created only when an authenticated user selects a MusicBrainz result.
 
-For development, `db:seed-fixtures:staging` adds three reserved public personas to the already-materialized Spotify catalog. These Auth principals have `.test` emails, no password, and no identity row; they provide ratings, saves, feed activity, likes, comments, and mutual follows without restoring a demo login. The seed also makes every completed Google profile follow all three personas. It is transactional and idempotent, validates the linked staging project, requires `--confirm=staging`, and cannot target production. Rerun it after completing a new staging OAuth profile so that account receives the fixture follows.
+For development, `db:seed-fixtures:staging` materializes four tracked MusicBrainz albums, synchronizes their deterministic genre snapshots, and adds three reserved public personas. These Auth principals have `.test` emails, no password, and no identity row; they provide ratings, saves, feed activity, likes, comments, and mutual follows without restoring a demo login. The seed also makes every completed Google profile follow all three personas. It is transactional and idempotent, validates the linked staging project, requires `--confirm=staging`, and cannot target production. Rerun it after completing a new staging OAuth profile so that account receives the fixture follows.
 
-Database tests remain deterministic by creating synthetic Google identities and social rows inside a transaction that always rolls back. The guarded `db:purge-fixtures:staging` command removes both the social personas and retired fixed fixtures while preserving the shared Spotify catalog and legitimate OAuth data. It permits expected OAuth-to-fixture follows but aborts if a legitimate user authored a like or comment on fixture activity. Production verification explicitly rejects every reserved fixture principal.
+Database tests remain deterministic by creating synthetic Google identities and social rows inside a transaction that always rolls back. The guarded `db:purge-fixtures:staging` command removes both the social personas and retired fixed fixtures while preserving the shared catalog and legitimate OAuth data. It permits expected OAuth-to-fixture follows but aborts if a legitimate user authored a like or comment on fixture activity. Production verification explicitly rejects every reserved fixture principal.
 
-## Spotify catalog credentials and deployment
+## MusicBrainz catalog deployment
 
-Spotify is a server-to-server catalog dependency, not an Alby sign-in provider. Create one Spotify developer app with Web API access; under Spotify's current development-mode rules its owner needs Premium and new developers are limited to one Client ID. The same app credentials can be uploaded independently to both Supabase projects.
+MusicBrainz is a server-to-server catalog dependency, not an Alby sign-in provider. It requires no API key. The authenticated `musicbrainz-albums` Edge Function identifies Alby with a contactable User-Agent, and a service-role database function spaces requests by at least 1.1 seconds across Edge Function instances.
 
-Copy `supabase/.env.spotify.example` to these ignored files and fill their values without committing them:
+Deploy and list the function through the guarded `musicbrainz:deploy:*` and `musicbrainz:functions:*` commands documented in the README. Deployment uses Supabase's server-side `--use-api` bundling and requires no Docker or local database. Every deployment write requires `--confirm=staging|production` and verifies the currently linked project.
 
-- `supabase/.env.spotify.staging.local`
-- `supabase/.env.spotify.production.local`
+The Edge Function requires an Alby user JWT. Search is read-only. Materialization uses the function's service-role client to call the protected catalog functions. MusicBrainz metadata IDs are stored separately from Alby's internal album IDs, and Cover Art Archive provides remote artwork URLs. A second idempotent synchronization stores at most five positive-vote top-level release-group genres; `genres_synced_at` distinguishes confirmed-empty results from catalog albums that still need enrichment.
 
-Each file defines `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `SPOTIFY_MARKET=US`. Upload and deploy only through the guarded commands documented in the README. They verify the currently linked project; secret and deployment writes also require `--confirm=staging|production`. Deployment uses Supabase's server-side `--use-api` bundling and requires no Docker or local database.
-
-The Edge Function requires an Alby user JWT. Search is read-only. Materialization uses the function's service-role client to call the protected database function, while Spotify access tokens and credentials never enter an Expo bundle or `EXPO_PUBLIC_*` variable.
+The one-time `musicbrainz:retire-spotify:*` commands remove the superseded hosted function and unset its provider secrets after the replacement passes verification in that environment. They remain intentionally separate from deployment so a failed MusicBrainz rollout cannot remove the working predecessor early.
 
 ## Google OAuth setup
 

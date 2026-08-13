@@ -1,10 +1,10 @@
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { PlusCircleIcon } from 'phosphor-react-native/src/icons/PlusCircle';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AlbumArtwork } from '@/components/album-artwork';
 import { MarqueeText } from '@/components/marquee-text';
 import { RatingInput } from '@/components/rating-input';
 import { AlbyButton, ScreenState } from '@/components/ui';
@@ -68,11 +68,15 @@ function ComposerContent({ album, error, note, onCancel, onChangeNote, onChangeV
   value: number;
 }) {
   const cover = getMediaUrl(album.cover_path);
-  const metadata = `${album.artist_name} • ${album.release_date?.slice(0, 4) ?? '—'} • ${album.track_count} tracks`;
+  const metadata = [
+    album.artist_name,
+    album.release_date?.slice(0, 4) ?? '—',
+    album.track_count ? `${album.track_count} tracks` : null,
+  ].filter(Boolean).join(' • ');
   return (
     <>
       <View style={styles.albumRow}>
-        {cover ? <Image source={cover} style={styles.cover} /> : <View style={styles.cover} />}
+        <AlbumArtwork source={cover} style={styles.cover} />
         <View style={styles.albumCopy}>
           <MarqueeText style={styles.artist} text={metadata} />
           <MarqueeText style={styles.title} text={album.title} />

@@ -13,7 +13,7 @@ This spec is a living document. Feature details marked as provisional may change
 The first version should let a user:
 
 - Create an account and sign in.
-- Search for albums and artists.
+- Search for albums and EPs by title.
 - View album detail pages.
 - Rate albums from 0.5 to 5.0.
 - Add optional notes to a rating.
@@ -22,13 +22,15 @@ The first version should let a user:
 - Follow and unfollow other users.
 - See a feed of album activity from people they follow.
 - View user profiles with rated albums and basic taste history.
-- Open an album in Spotify from its album page.
+- View an album's canonical metadata on MusicBrainz from its album page.
 
 ## 3. Non-Goals for MVP
 
 The first version should avoid:
 
-- Importing listening history from Spotify, Apple Music, or Last.fm.
+- Importing listening history from external music services.
+- Personalized recommendations, taste-model enrichment, or new-release discovery feeds.
+- Apple Music, ListenBrainz, or Last.fm catalog integrations.
 - Rating songs, artists, playlists, or concerts.
 - Advanced public charts or global rankings.
 - AI-powered taste comparison.
@@ -143,12 +145,11 @@ Key fields:
 - Cover image URL.
 - Release date.
 - Release type (`album` or `ep`).
-- Spotify ID.
-- Spotify URL.
-- Additional external service URLs, if supported later.
+- Provider-neutral catalog source identities and URLs.
+- Up to five ranked provider genres stored through normalized catalog identities.
 - Track count and metadata, if available from source.
 
-Albums should be created in Supabase when a user interacts with a Spotify result, so alby has stable internal album records.
+Albums should be created in Supabase when a user interacts with a MusicBrainz release-group result, so alby has stable internal records independent of any provider ID.
 
 ### Rating
 
@@ -230,7 +231,7 @@ MVP onboarding can be minimal. The app should not require music import or taste 
 ### Explore and Rate Album
 
 1. User opens Explore.
-2. User searches for an album or artist.
+2. User searches for an album or EP by title.
 3. User selects an album result.
 4. App opens Album Detail.
 5. User reviews album information, friend/global ratings, and their own rating state.
@@ -245,7 +246,7 @@ MVP onboarding can be minimal. The app should not require music import or taste 
 2. User sees a post involving an album.
 3. User taps the album title.
 4. App opens Album Detail for that album.
-5. User can open the album on Spotify, add it to Listen Later, share it, or rate it.
+5. User can view the album on MusicBrainz, add it to Listen Later, share it, or rate it.
 
 ### Save for Later
 
@@ -298,10 +299,8 @@ Purpose: help users search for music and discover albums beyond the home feed.
 
 Required content:
 
-- Search field for albums and artists.
+- Search field for album and EP titles.
 - Album results with cover, title, artist, year, and quick action.
-- New releases section.
-- Recently rated by friends section.
 - Empty state before search.
 - No-results state.
 
@@ -321,7 +320,8 @@ Required content:
 - Artist.
 - Release year/date.
 - Album information and metadata.
-- Spotify button that opens the album's Spotify page.
+- Up to five ranked MusicBrainz genre tags beneath the title when genre data exists.
+- MusicBrainz button that opens the album's canonical release-group page when available.
 - Listen Later button in the unrated state.
 - Share button.
 - Friend Rating: the average rating from the user's friends.
@@ -343,7 +343,9 @@ Provisional behavior:
 - Friend and Global values use the dedicated 24px aggregate disc variant with its right half masked.
 - The three-dot menu on a personal rating exposes deletion. Deleting the user's only rating returns the album to its unrated actions.
 - Friend and Global averages use only each eligible user's newest rating so rating history does not give one person extra weight.
-- Spotify is the first committed external music destination; other services can be added later if supported by the final product direction.
+- MusicBrainz is the committed external metadata destination for MusicBrainz-backed albums.
+- Genre tags are non-interactive, omitted entirely for confirmed-empty albums, and do not appear in feeds, lists, the rating composer, or the compact header.
+- Genre tags follow Album Detail node `53:46`: a centered wrapping row with a 2px gap, muted fill, border, 8px horizontal and 2px vertical padding, a 17px radius, and 8px medium canvas-colored text.
 
 ### Rating Composer
 
@@ -511,7 +513,7 @@ Loading rules:
 ### Error States
 
 - Album search failed.
-- Spotify API unavailable.
+- MusicBrainz API unavailable or rate limited.
 - Rating failed to save.
 - Follow action failed.
 - External music link unavailable.
@@ -546,26 +548,32 @@ Private:
 
 ## 14. Data Source Direction
 
-Spotify Web API is the MVP catalog source because it provides practical album search, cover art, artist metadata, precision-preserving release dates, and Spotify links.
+MusicBrainz release groups are the MVP catalog source. A release group represents the conceptual album or EP across its physical, regional, and digital editions, while Alby's own UUID remains the stable internal identity. Cover Art Archive supplies release-group artwork.
 
 Implementation direction:
 
-- Search Spotify for full albums and four-to-six-track releases categorized by Spotify as singles (shown in Alby as EPs).
-- Display at most ten fixed-US Spotify results in a temporary Explore search, with Spotify attribution on each result.
-- Support Explore discovery surfaces such as new releases and recently rated by friends when data sources are finalized.
+- Search MusicBrainz for release groups by album or EP title, excluding compilations. Artist-name search is deferred.
+- Display at most ten MusicBrainz results in Explore, with source attribution and Cover Art Archive artwork.
 - When a user selects a result, create, reconcile, or reuse an internal Supabase album record before opening Album Detail.
-- Store Spotify ID, external URL, remote cover URL, joined artist names, raw release-date precision, track count, and Album/EP release type.
-- Keep Spotify Client Credentials in each Supabase project's Edge Function secrets; Spotify is not an Alby login provider.
-- Additional external music service links are TBD and should not block the Spotify-first MVP.
+- Store provider IDs and URLs in `album_catalog_sources`, separate from the internal album record.
+- Store the MusicBrainz release-group ID and URL, Cover Art Archive URL, credited artist text, partial first-release date, and Album/EP release type.
+- Import only the release group's top-level MusicBrainz genres; never inherit artist genres. Keep entries with a valid MusicBrainz ID, a non-empty canonical name, and a positive integer vote count.
+- Deduplicate genres by MusicBrainz genre ID, sort by vote count descending and then canonical name, and retain at most five. Store canonical lowercase names in `catalog_genres` and ranked album assignments in `album_genres`.
+- Track genre synchronization on `album_catalog_sources`, including confirmed-empty results, so interrupted materializations can retry the idempotent second synchronization without replacing the album or its social identity.
+- Display genre names in design-style Title Case while preserving canonical storage, including `r&b` as `R&B`. Genre tags remain display-only for now; their normalized provider identities are intended to support later discovery queries.
+- Treat track count as optional because release groups may contain editions with different track lists.
+- Send a contactable Alby User-Agent and serialize MusicBrainz requests to respect the documented average one-request-per-second limit.
+- Do not use Apple Music as an alternate catalog and do not enrich discovery with ListenBrainz or Last.fm.
+- Defer personalized recommendations, taste enrichment, and new-release discovery until a later product decision.
 
 Known tradeoffs:
 
-- Spotify may contain duplicate album versions.
-- Regional metadata may vary.
-- Deluxe editions remain separate when Spotify assigns different IDs; true one-to-three-track singles and compilations are excluded for now.
-- New-release sources may require a separate product decision.
+- Release groups intentionally collapse regional and format-specific editions.
+- Community-maintained metadata and artwork may be incomplete or corrected over time.
+- Missing Cover Art Archive images must fall back to Alby's standard artwork placeholder.
+- Singles and compilations are excluded for now.
 
-This is acceptable for MVP because convenience and speed matter more than perfect canonical music metadata.
+This is acceptable for MVP because MusicBrainz provides open canonical identity without coupling Alby's catalog to a streaming-service API.
 
 ## 15. Supabase Planning Notes
 
@@ -585,7 +593,7 @@ This is acceptable for MVP because convenience and speed matter more than perfec
 - Coverless Album Detail activities omit the Rate and Listen Later action row while Home and Profile activities remain actionable.
 - Rating notes collapse to three lines with accessible inline Read more and Read less controls in Home, Profile, and Album Detail.
 - Rating and Listen Later activity album titles open Album Detail from Home and Profile. Album Detail activity titles are plain text because the viewer is already on that album; the compact header identity remains the scroll-to-top control.
-- Album metadata is presented as `Artist • Year • Track count` above the title in Album Detail and the rating composer.
+- Album metadata is presented as `Artist • Year` with `• Track count` appended only when that value is known.
 - Album Detail shows a safe-area-aware 73px compact header after the hero action row scrolls past the viewport. Its album identity scrolls to the top, and Saved bookmarks use the filled icon state.
 - Profile tabs use the Figma `62:51` shell: a 41px lower border with 48px corners, aligned 23px label stacks inside 25px tab content, 16px bottom space, 33px gaps, and an underline matching the active label. The side strokes overscan phone viewports by 2px per edge.
 - Flexible screen content fills portrait iPhones with the established 24px side padding, then remains centered at a 600px readable-width cap on tablets and landscape. Fixed-format artwork, avatars, discs, icon controls, and modal dimensions do not stretch.
@@ -597,6 +605,9 @@ Implemented tables:
 
 - `profiles`
 - `albums`
+- `album_catalog_sources`
+- `catalog_genres`
+- `album_genres`
 - `ratings`
 - `listen_later_items`
 - `follows`
@@ -610,6 +621,7 @@ RLS is enforced around:
 - Users can manage their own listen-later items.
 - Account privacy and mutual-follow access use one shared database rule.
 - Album catalog writes remain service-role operations.
+- Album and catalog genre reads require authentication; genre synchronization remains a service-role operation.
 - Feed and engagement queries inherit the activity author's privacy.
 
 ## 16. Design Handoff
@@ -629,7 +641,7 @@ Future design-to-Expo handoff process:
 - Should ratings allow a 0-point "logged but unrated" state?
 - Should users be able to comment on ratings in MVP, or should MVP only support likes?
 - Should album pages show all followed-user notes or only recent/top notes?
-- Should additional external music services be supported after Spotify?
+- Should Alby eventually add listening-service destinations separately from its catalog source?
 
 ## 18. Current Decisions
 
@@ -642,8 +654,11 @@ For the first working design iteration, assume:
 - Profiles are public by default and may be private at the account level.
 - Private profile content is visible to owners and mutual follows only.
 - Friend Rating uses mutual follows; Global Rating uses public-profile ratings only.
-- Spotify is the MVP catalog source.
-- Spotify is the first committed external album destination.
-- Explore includes search for albums and artists, plus provisional new releases and recently rated by friends.
+- MusicBrainz release groups are the MVP catalog source and canonical external metadata destination.
+- Cover Art Archive is the album-artwork source for MusicBrainz results.
+- Catalog identities are provider-neutral and stored separately from internal album IDs.
+- MusicBrainz genre identities are normalized, limited to five ranked release-group genres per album, and displayed only on Album Detail until discovery is designed.
+- Explore searches albums and EPs by title; artist-name, personalized, and new-release discovery are deferred.
+- Apple Music, ListenBrainz, and Last.fm are not part of the catalog or discovery implementation.
 - The Figma file is the design authority; Phosphor icons are imported directly and the rating disc remains the custom visual asset.
 - Expo implementation should translate those finished designs faithfully and suggest only standards-based refinements.

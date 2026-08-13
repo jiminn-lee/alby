@@ -4,21 +4,117 @@ set local search_path = public, extensions, auth, pg_temp;
 
 do $$
 begin
+  perform public.materialize_catalog_album(
+    'musicbrainz',
+    '48117b90-a16e-34ca-a514-19c702df1158',
+    'https://musicbrainz.org/release-group/48117b90-a16e-34ca-a514-19c702df1158',
+    'Discovery',
+    'Daft Punk',
+    'https://coverartarchive.org/release-group/48117b90-a16e-34ca-a514-19c702df1158/front-500',
+    '2001-02-26',
+    null,
+    'album'
+  );
+  perform public.materialize_catalog_album(
+    'musicbrainz',
+    'f8f4167d-897c-4b25-a171-638374d1dfa4',
+    'https://musicbrainz.org/release-group/f8f4167d-897c-4b25-a171-638374d1dfa4',
+    'channel ORANGE',
+    'Frank Ocean',
+    'https://coverartarchive.org/release-group/f8f4167d-897c-4b25-a171-638374d1dfa4/front-500',
+    '2012-07-10',
+    null,
+    'album'
+  );
+  perform public.materialize_catalog_album(
+    'musicbrainz',
+    '18be804e-9b7c-4b19-b6af-3eae9dc752e9',
+    'https://musicbrainz.org/release-group/18be804e-9b7c-4b19-b6af-3eae9dc752e9',
+    'SS-POP 3',
+    'SYSTEM SEOUL',
+    'https://coverartarchive.org/release-group/18be804e-9b7c-4b19-b6af-3eae9dc752e9/front-500',
+    '2026-07-15',
+    null,
+    'album'
+  );
+  perform public.materialize_catalog_album(
+    'musicbrainz',
+    '4ddcc4fb-423b-4c98-9265-804071debce9',
+    'https://musicbrainz.org/release-group/4ddcc4fb-423b-4c98-9265-804071debce9',
+    'pullup to busan 4 morE hypEr summEr it’s gonna bE a fuckin moviE',
+    'Effie',
+    'https://coverartarchive.org/release-group/4ddcc4fb-423b-4c98-9265-804071debce9/front-500',
+    '2025-08-01',
+    null,
+    'ep'
+  );
+
   if (
-    select count(distinct album.spotify_id)
-    from public.albums album
-    where album.spotify_id in (
-      '2noRn2Aes5aoNVsU6iWThc',
-      '392p3shh2jkxUxY2VHvlH8',
-      '3JYSv64ZaFK2qHEBZ3suUD',
-      '0YNxRyJMnNXOfysgawFE8B',
-      '0HhoqCRYpuH5sc9mlgCgrF',
-      '4TJQ4ze7fqMJIzGB1Y4vTy'
-    )
-  ) <> 6 then
+    select count(*)
+    from public.album_catalog_sources source
+    where source.provider = 'musicbrainz'
+      and source.external_id in (
+        '48117b90-a16e-34ca-a514-19c702df1158',
+        'f8f4167d-897c-4b25-a171-638374d1dfa4',
+        '18be804e-9b7c-4b19-b6af-3eae9dc752e9',
+        '4ddcc4fb-423b-4c98-9265-804071debce9'
+      )
+  ) <> 4 then
     raise exception using
-      message = 'Staging social fixtures require all six tracked Spotify albums. Materialize the missing albums before seeding.';
+      message = 'Staging social fixtures require all four tracked MusicBrainz albums.';
   end if;
+
+  perform public.sync_catalog_album_genres(
+    (
+      select source.album_id
+      from public.album_catalog_sources source
+      where source.provider = 'musicbrainz'
+        and source.external_id = '48117b90-a16e-34ca-a514-19c702df1158'
+    ),
+    'musicbrainz',
+    jsonb_build_array(
+      jsonb_build_object('external_id', 'a2782cb6-1cd0-477c-a61d-b3f8b42dd1b3', 'name', 'house', 'vote_count', 20, 'rank', 1),
+      jsonb_build_object('external_id', '89255676-1f14-4dd8-bbad-fca839d6aff4', 'name', 'electronic', 'vote_count', 14, 'rank', 2),
+      jsonb_build_object('external_id', '5acda04e-995d-4f79-9a66-5fe6a977ce15', 'name', 'french house', 'vote_count', 8, 'rank', 3),
+      jsonb_build_object('external_id', '70adb285-e1f7-458a-823f-5cbda5e291c4', 'name', 'progressive house', 'vote_count', 4, 'rank', 4),
+      jsonb_build_object('external_id', 'e5bba957-8c91-496a-a675-c6d0c6b51c33', 'name', 'dance', 'vote_count', 3, 'rank', 5)
+    )
+  );
+  perform public.sync_catalog_album_genres(
+    (
+      select source.album_id
+      from public.album_catalog_sources source
+      where source.provider = 'musicbrainz'
+        and source.external_id = 'f8f4167d-897c-4b25-a171-638374d1dfa4'
+    ),
+    'musicbrainz',
+    jsonb_build_array(
+      jsonb_build_object('external_id', '4bb4043a-0ee5-4b84-93fa-6ba4567a6ba0', 'name', 'contemporary r&b', 'vote_count', 3, 'rank', 1),
+      jsonb_build_object('external_id', '4e03fb35-d571-4111-824d-88c9f8a3d0c9', 'name', 'alternative r&b', 'vote_count', 2, 'rank', 2),
+      jsonb_build_object('external_id', '911c7bbb-172d-4df8-9478-dbff4296e791', 'name', 'pop', 'vote_count', 1, 'rank', 3),
+      jsonb_build_object('external_id', '31be54b2-4d0c-42df-aa44-c496c7b4c3c3', 'name', 'r&b', 'vote_count', 1, 'rank', 4)
+    )
+  );
+  perform public.sync_catalog_album_genres(
+    (
+      select source.album_id
+      from public.album_catalog_sources source
+      where source.provider = 'musicbrainz'
+        and source.external_id = '18be804e-9b7c-4b19-b6af-3eae9dc752e9'
+    ),
+    'musicbrainz',
+    '[]'::jsonb
+  );
+  perform public.sync_catalog_album_genres(
+    (
+      select source.album_id
+      from public.album_catalog_sources source
+      where source.provider = 'musicbrainz'
+        and source.external_id = '4ddcc4fb-423b-4c98-9265-804071debce9'
+    ),
+    'musicbrainz',
+    '[]'::jsonb
+  );
 
   if exists (
     select 1
@@ -205,7 +301,7 @@ from (values
   (
     'f17e1000-0000-4000-8000-000000000001'::uuid,
     'f17e0000-0000-4000-8000-000000000001'::uuid,
-    '2noRn2Aes5aoNVsU6iWThc',
+    '48117b90-a16e-34ca-a514-19c702df1158',
     5.0::numeric,
     'Still sounds like the future.',
     interval '6 days'
@@ -213,7 +309,7 @@ from (values
   (
     'f17e1000-0000-4000-8000-000000000002'::uuid,
     'f17e0000-0000-4000-8000-000000000001'::uuid,
-    '392p3shh2jkxUxY2VHvlH8',
+    'f8f4167d-897c-4b25-a171-638374d1dfa4',
     4.5::numeric,
     null,
     interval '4 days'
@@ -221,7 +317,7 @@ from (values
   (
     'f17e1000-0000-4000-8000-000000000003'::uuid,
     'f17e0000-0000-4000-8000-000000000001'::uuid,
-    '3JYSv64ZaFK2qHEBZ3suUD',
+    '18be804e-9b7c-4b19-b6af-3eae9dc752e9',
     4.0::numeric,
     null,
     interval '2 days'
@@ -229,23 +325,15 @@ from (values
   (
     'f17e1000-0000-4000-8000-000000000004'::uuid,
     'f17e0000-0000-4000-8000-000000000002'::uuid,
-    '392p3shh2jkxUxY2VHvlH8',
+    'f8f4167d-897c-4b25-a171-638374d1dfa4',
     5.0::numeric,
     'Every detail lands.',
     interval '5 days 12 hours'
   ),
   (
-    'f17e1000-0000-4000-8000-000000000005'::uuid,
-    'f17e0000-0000-4000-8000-000000000002'::uuid,
-    '0HhoqCRYpuH5sc9mlgCgrF',
-    4.0::numeric,
-    null,
-    interval '3 days 12 hours'
-  ),
-  (
     'f17e1000-0000-4000-8000-000000000006'::uuid,
     'f17e0000-0000-4000-8000-000000000002'::uuid,
-    '4TJQ4ze7fqMJIzGB1Y4vTy',
+    '4ddcc4fb-423b-4c98-9265-804071debce9',
     3.5::numeric,
     'Great energy front to back.',
     interval '1 day 12 hours'
@@ -253,29 +341,16 @@ from (values
   (
     'f17e1000-0000-4000-8000-000000000007'::uuid,
     'f17e0000-0000-4000-8000-000000000003'::uuid,
-    '2noRn2Aes5aoNVsU6iWThc',
+    '48117b90-a16e-34ca-a514-19c702df1158',
     4.5::numeric,
     null,
     interval '5 days'
-  ),
-  (
-    'f17e1000-0000-4000-8000-000000000008'::uuid,
-    'f17e0000-0000-4000-8000-000000000003'::uuid,
-    '0YNxRyJMnNXOfysgawFE8B',
-    3.5::numeric,
-    null,
-    interval '3 days'
-  ),
-  (
-    'f17e1000-0000-4000-8000-000000000009'::uuid,
-    'f17e0000-0000-4000-8000-000000000003'::uuid,
-    '0HhoqCRYpuH5sc9mlgCgrF',
-    4.5::numeric,
-    'This one stays in rotation.',
-    interval '1 day'
   )
-) as fixture(id, user_id, spotify_id, value, note, age)
-join public.albums album on album.spotify_id = fixture.spotify_id
+) as fixture(id, user_id, release_group_id, value, note, age)
+join public.album_catalog_sources source
+  on source.provider = 'musicbrainz'
+ and source.external_id = fixture.release_group_id
+join public.albums album on album.id = source.album_id
 on conflict (id) do nothing;
 
 insert into public.listen_later_items (id, user_id, album_id, created_at)
@@ -288,23 +363,26 @@ from (values
   (
     'f17e2000-0000-4000-8000-000000000001'::uuid,
     'f17e0000-0000-4000-8000-000000000001'::uuid,
-    '4TJQ4ze7fqMJIzGB1Y4vTy',
+    '4ddcc4fb-423b-4c98-9265-804071debce9',
     interval '18 hours'
   ),
   (
     'f17e2000-0000-4000-8000-000000000002'::uuid,
     'f17e0000-0000-4000-8000-000000000002'::uuid,
-    '2noRn2Aes5aoNVsU6iWThc',
+    '48117b90-a16e-34ca-a514-19c702df1158',
     interval '30 hours'
   ),
   (
     'f17e2000-0000-4000-8000-000000000003'::uuid,
     'f17e0000-0000-4000-8000-000000000003'::uuid,
-    '392p3shh2jkxUxY2VHvlH8',
+    'f8f4167d-897c-4b25-a171-638374d1dfa4',
     interval '42 hours'
   )
-) as fixture(id, user_id, spotify_id, age)
-join public.albums album on album.spotify_id = fixture.spotify_id
+) as fixture(id, user_id, release_group_id, age)
+join public.album_catalog_sources source
+  on source.provider = 'musicbrainz'
+ and source.external_id = fixture.release_group_id
+join public.albums album on album.id = source.album_id
 on conflict (id) do nothing;
 
 insert into public.activity_events (
@@ -392,11 +470,6 @@ from (values
     'f17e0000-0000-4000-8000-000000000001'::uuid,
     'f17e1000-0000-4000-8000-000000000004'::uuid,
     interval '5 days 11 hours'
-  ),
-  (
-    'f17e0000-0000-4000-8000-000000000002'::uuid,
-    'f17e1000-0000-4000-8000-000000000009'::uuid,
-    interval '23 hours'
   )
 ) as fixture(user_id, rating_id, age)
 join public.activity_events event on event.rating_id = fixture.rating_id
@@ -437,28 +510,12 @@ from (values
     interval '5 days 10 hours'
   ),
   (
-    'f17e3000-0000-4000-8000-000000000003'::uuid,
-    'f17e0000-0000-4000-8000-000000000002'::uuid,
-    'f17e1000-0000-4000-8000-000000000009'::uuid,
-    null::uuid,
-    'Adding this to the queue.',
-    interval '22 hours'
-  ),
-  (
     'f17e3000-0000-4000-8000-000000000004'::uuid,
     'f17e0000-0000-4000-8000-000000000002'::uuid,
     'f17e1000-0000-4000-8000-000000000002'::uuid,
     null::uuid,
     'The second half is where it really clicked for me.',
     interval '3 days 23 hours'
-  ),
-  (
-    'f17e3000-0000-4000-8000-000000000005'::uuid,
-    'f17e0000-0000-4000-8000-000000000003'::uuid,
-    'f17e1000-0000-4000-8000-000000000005'::uuid,
-    null::uuid,
-    'That chorus has been stuck in my head all week.',
-    interval '3 days 10 hours'
   ),
   (
     'f17e3000-0000-4000-8000-000000000006'::uuid,
@@ -607,9 +664,7 @@ from (values
   ('f17e0000-0000-4000-8000-000000000002'::uuid, 'f17e3000-0000-4000-8000-000000000001'::uuid, interval '5 days 19 hours'),
   ('f17e0000-0000-4000-8000-000000000001'::uuid, 'f17e3000-0000-4000-8000-000000000001'::uuid, interval '5 days 17 hours'),
   ('f17e0000-0000-4000-8000-000000000003'::uuid, 'f17e3000-0000-4000-8000-000000000002'::uuid, interval '5 days 9 hours'),
-  ('f17e0000-0000-4000-8000-000000000001'::uuid, 'f17e3000-0000-4000-8000-000000000003'::uuid, interval '21 hours'),
   ('f17e0000-0000-4000-8000-000000000002'::uuid, 'f17e3000-0000-4000-8000-000000000004'::uuid, interval '3 days 22 hours'),
-  ('f17e0000-0000-4000-8000-000000000003'::uuid, 'f17e3000-0000-4000-8000-000000000005'::uuid, interval '3 days 9 hours'),
   ('f17e0000-0000-4000-8000-000000000001'::uuid, 'f17e3000-0000-4000-8000-000000000006'::uuid, interval '16 hours'),
   ('f17e0000-0000-4000-8000-000000000003'::uuid, 'f17e3000-0000-4000-8000-000000000006'::uuid, interval '14 hours'),
   ('f17e0000-0000-4000-8000-000000000001'::uuid, 'f17e3000-0000-4000-8000-000000000009'::uuid, interval '5 days 16 hours'),
@@ -636,27 +691,27 @@ begin
       and nullif(encrypted_password, '') is not null) <> 0
     or (select count(*) from public.ratings where user_id between
       'f17e0000-0000-4000-8000-000000000001'::uuid and
-      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 9
+      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 6
     or (select count(*) from public.listen_later_items where user_id between
       'f17e0000-0000-4000-8000-000000000001'::uuid and
       'f17e0000-0000-4000-8000-000000000003'::uuid) <> 3
     or (select count(*) from public.activity_events where actor_id between
       'f17e0000-0000-4000-8000-000000000001'::uuid and
-      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 12
+      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 9
     or (select count(*) from public.likes where user_id between
       'f17e0000-0000-4000-8000-000000000001'::uuid and
-      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 4
+      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 3
     or (select count(*) from public.comments where user_id between
       'f17e0000-0000-4000-8000-000000000001'::uuid and
-      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 19
+      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 17
     or (select count(*) from public.comments
       where user_id between
         'f17e0000-0000-4000-8000-000000000001'::uuid and
         'f17e0000-0000-4000-8000-000000000003'::uuid
-      and parent_comment_id is null) <> 8
+      and parent_comment_id is null) <> 6
     or (select count(*) from public.comment_likes where user_id between
       'f17e0000-0000-4000-8000-000000000001'::uuid and
-      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 12
+      'f17e0000-0000-4000-8000-000000000003'::uuid) <> 10
     or (select count(*) from public.follows
       where follower_id between
         'f17e0000-0000-4000-8000-000000000001'::uuid and

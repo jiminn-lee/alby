@@ -11,6 +11,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Fonts, Palette, PressedOpacity } from '@/constants/theme';
 
+import { AlbumArtwork } from './album-artwork';
 import { ExpandableNote } from './expandable-note';
 import { MarqueeText } from './marquee-text';
 import { DiscTone, RatingDisc } from './rating-disc';
@@ -217,12 +218,12 @@ function AlbumSummary({
 
   return (
     <View style={[styles.albumRow, !compact && { height: coverSize }]}>
-      {!compact && cover && (
+      {!compact && (
         <Pressable
           accessibilityRole="button"
           onPress={onOpenAlbum}
           style={({ pressed }) => pressed && styles.pressed}>
-          <Image source={cover} style={[styles.cover, { width: coverSize, height: coverSize }]} />
+          <AlbumArtwork source={cover} style={[styles.cover, { width: coverSize, height: coverSize }]} />
         </Pressable>
       )}
       <View style={[styles.albumDetails, compact && styles.compactAlbumDetails]}>

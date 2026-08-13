@@ -50,7 +50,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test:spotify": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test supabase/functions/tests/*.test.ts",
+    "test:musicbrainz": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test supabase/functions/tests/*.test.ts",
     "db:link:staging": "node scripts/supabase-target.mjs link staging",
     "db:link:production": "node scripts/supabase-target.mjs link production",
     "db:migrations:staging": "node scripts/supabase-target.mjs migrations staging",
@@ -68,12 +68,12 @@
     "db:lint": "node scripts/supabase-target.mjs lint staging",
     "db:test": "node scripts/supabase-target.mjs test staging",
     "db:types": "node scripts/supabase-target.mjs types staging",
-    "spotify:secrets:staging": "node scripts/supabase-target.mjs spotify-secrets staging",
-    "spotify:secrets:production": "node scripts/supabase-target.mjs spotify-secrets production",
-    "spotify:deploy:staging": "node scripts/supabase-target.mjs spotify-deploy staging",
-    "spotify:deploy:production": "node scripts/supabase-target.mjs spotify-deploy production",
-    "spotify:functions:staging": "node scripts/supabase-target.mjs spotify-list staging",
-    "spotify:functions:production": "node scripts/supabase-target.mjs spotify-list production"
+    "musicbrainz:deploy:staging": "node scripts/supabase-target.mjs musicbrainz-deploy staging",
+    "musicbrainz:deploy:production": "node scripts/supabase-target.mjs musicbrainz-deploy production",
+    "musicbrainz:functions:staging": "node scripts/supabase-target.mjs musicbrainz-list staging",
+    "musicbrainz:functions:production": "node scripts/supabase-target.mjs musicbrainz-list production",
+    "musicbrainz:retire-spotify:staging": "node scripts/supabase-target.mjs retire-spotify staging",
+    "musicbrainz:retire-spotify:production": "node scripts/supabase-target.mjs retire-spotify production"
   },
   "private": true
 }

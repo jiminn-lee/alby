@@ -5,7 +5,6 @@ export const Palette = {
   muted: '#A48B85',
   border: '#E3DED6',
   liked: '#D95555',
-  spotify: '#1DB954',
 } as const;
 
 export const Fonts = {

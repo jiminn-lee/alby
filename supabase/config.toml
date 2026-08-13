@@ -87,5 +87,5 @@ otp_length = 6
 template = "Your code is {{ .Code }}"
 max_frequency = "5s"
 
-[functions.spotify-albums]
+[functions.musicbrainz-albums]
 verify_jwt = true

@@ -4,16 +4,16 @@ import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SpotifyAlbumResult } from '@/components/spotify-album-result';
+import { MusicBrainzAlbumResult } from '@/components/musicbrainz-album-result';
 import { AlbyButton, ScreenState } from '@/components/ui';
 import { BottomTabInset, Fonts, MaxContentWidth, Palette } from '@/constants/theme';
-import { useMaterializeSpotifyAlbum, useSpotifyAlbumSearch } from '@/features/spotify/hooks';
+import { useMaterializeMusicBrainzAlbum, useMusicBrainzAlbumSearch } from '@/features/musicbrainz/hooks';
 
 export default function ExploreScreen() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const albums = useSpotifyAlbumSearch(search);
-  const materialize = useMaterializeSpotifyAlbum();
+  const albums = useMusicBrainzAlbumSearch(search);
+  const materialize = useMaterializeMusicBrainzAlbum();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const isWaitingForDebounce = albums.normalizedSearch !== albums.debouncedSearch;
@@ -26,10 +26,10 @@ export default function ExploreScreen() {
     setSearch(value);
   };
 
-  const selectAlbum = (spotifyId: string) => {
+  const selectAlbum = (releaseGroupId: string) => {
     if (materialize.isPending) return;
-    setSelectedId(spotifyId);
-    materialize.mutate(spotifyId, {
+    setSelectedId(releaseGroupId);
+    materialize.mutate(releaseGroupId, {
       onSuccess: ({ album }) => router.push({ pathname: '/albums/[albumId]', params: { albumId: album.id } }),
     });
   };
@@ -49,7 +49,7 @@ export default function ExploreScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           onChangeText={changeSearch}
-          placeholder="Search Spotify albums and EPs"
+          placeholder="Search album or EP titles"
           placeholderTextColor={Palette.muted}
           returnKeyType="search"
           style={styles.input}
@@ -65,9 +65,9 @@ export default function ExploreScreen() {
       ) : null}
 
       {albums.normalizedSearch.length < 2 ? (
-        <Text style={styles.prompt}>Enter at least two characters to search Spotify.</Text>
+        <Text style={styles.prompt}>Enter at least two characters to search MusicBrainz.</Text>
       ) : isWaitingForDebounce || albums.isLoading ? (
-        <ScreenState label="Searching Spotify..." />
+        <ScreenState label="Searching MusicBrainz..." />
       ) : albums.error ? (
         <View style={styles.inlineError}>
           <Text style={styles.errorText}>{albums.error.message}</Text>
@@ -76,12 +76,12 @@ export default function ExploreScreen() {
       ) : results.length === 0 ? (
         <Text style={styles.prompt}>No supported albums or EPs found.</Text>
       ) : results.map((album) => (
-        <SpotifyAlbumResult
+        <MusicBrainzAlbumResult
           album={album}
-          busy={materialize.isPending && selectedId === album.spotifyId}
+          busy={materialize.isPending && selectedId === album.releaseGroupId}
           disabled={materialize.isPending}
-          key={album.spotifyId}
-          onSelect={() => selectAlbum(album.spotifyId)}
+          key={album.releaseGroupId}
+          onSelect={() => selectAlbum(album.releaseGroupId)}
         />
       ))}
     </ScrollView>
