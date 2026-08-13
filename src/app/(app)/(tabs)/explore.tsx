@@ -49,7 +49,7 @@ export default function ExploreScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           onChangeText={changeSearch}
-          placeholder="Search MusicBrainz albums and EPs"
+          placeholder="Search album or EP titles"
           placeholderTextColor={Palette.muted}
           returnKeyType="search"
           style={styles.input}

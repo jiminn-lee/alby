@@ -88,7 +88,7 @@ The pgTAP suite builds synthetic Google identities and social data inside a tran
 
 ## MusicBrainz album search
 
-Explore searches MusicBrainz release groups through the authenticated `musicbrainz-albums` Supabase Edge Function. Selecting a result materializes its canonical metadata in Alby, or reconciles one exact title-and-artist match, before opening the existing album page. Album artwork uses release-group images from Cover Art Archive, and catalog identities live in provider-neutral `album_catalog_sources` records. Materialization also imports the release group's top five positive-vote MusicBrainz genres into normalized `catalog_genres` and `album_genres` records. Album Detail presents those ranked genres as display-only tags; the normalized identities are reserved for later discovery work.
+Explore searches MusicBrainz release groups by album or EP title through the authenticated `musicbrainz-albums` Supabase Edge Function. Selecting a result materializes its canonical metadata in Alby, or reconciles one exact title-and-artist match, before opening the existing album page. Album artwork uses release-group images from Cover Art Archive, and catalog identities live in provider-neutral `album_catalog_sources` records. Materialization also imports the release group's top five positive-vote MusicBrainz genres into normalized `catalog_genres` and `album_genres` records. Album Detail presents those ranked genres as display-only tags; the normalized identities are reserved for later discovery work.
 
 MusicBrainz requires no API credential. The Edge Function sends Alby's contactable User-Agent and uses a database-backed request slot to keep upstream calls at least 1.1 seconds apart across function instances.
 

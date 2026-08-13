@@ -13,7 +13,7 @@ This spec is a living document. Feature details marked as provisional may change
 The first version should let a user:
 
 - Create an account and sign in.
-- Search for albums and artists.
+- Search for albums and EPs by title.
 - View album detail pages.
 - Rate albums from 0.5 to 5.0.
 - Add optional notes to a rating.
@@ -231,7 +231,7 @@ MVP onboarding can be minimal. The app should not require music import or taste 
 ### Explore and Rate Album
 
 1. User opens Explore.
-2. User searches for an album or artist.
+2. User searches for an album or EP by title.
 3. User selects an album result.
 4. App opens Album Detail.
 5. User reviews album information, friend/global ratings, and their own rating state.
@@ -299,7 +299,7 @@ Purpose: help users search for music and discover albums beyond the home feed.
 
 Required content:
 
-- Search field for albums and artists.
+- Search field for album and EP titles.
 - Album results with cover, title, artist, year, and quick action.
 - Empty state before search.
 - No-results state.
@@ -552,7 +552,7 @@ MusicBrainz release groups are the MVP catalog source. A release group represent
 
 Implementation direction:
 
-- Search MusicBrainz for release groups whose primary type is Album or EP, excluding compilations.
+- Search MusicBrainz for release groups by album or EP title, excluding compilations. Artist-name search is deferred.
 - Display at most ten MusicBrainz results in Explore, with source attribution and Cover Art Archive artwork.
 - When a user selects a result, create, reconcile, or reuse an internal Supabase album record before opening Album Detail.
 - Store provider IDs and URLs in `album_catalog_sources`, separate from the internal album record.
@@ -658,7 +658,7 @@ For the first working design iteration, assume:
 - Cover Art Archive is the album-artwork source for MusicBrainz results.
 - Catalog identities are provider-neutral and stored separately from internal album IDs.
 - MusicBrainz genre identities are normalized, limited to five ranked release-group genres per album, and displayed only on Album Detail until discovery is designed.
-- Explore searches albums and EPs by title or credited artist; personalized and new-release discovery is deferred.
+- Explore searches albums and EPs by title; artist-name, personalized, and new-release discovery are deferred.
 - Apple Music, ListenBrainz, and Last.fm are not part of the catalog or discovery implementation.
 - The Figma file is the design authority; Phosphor icons are imported directly and the rating disc remains the custom visual asset.
 - Expo implementation should translate those finished designs faithfully and suggest only standards-based refinements.

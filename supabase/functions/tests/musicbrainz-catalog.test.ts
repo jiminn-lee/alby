@@ -120,7 +120,7 @@ test('genre display casing preserves canonical acronyms and title-case conventio
   assert.equal(formatGenreName('uk hip-hop/electronic'), 'UK Hip-Hop/Electronic');
 });
 
-test('search escapes Lucene syntax and sends the contactable User-Agent after reserving a slot', async () => {
+test('search escapes Lucene syntax and sends one top-ten request after reserving a slot', async () => {
   let reserved = 0;
   let request: Request | null = null;
   const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
@@ -137,8 +137,15 @@ test('search escapes Lucene syntax and sends the contactable User-Agent after re
 
   assert.equal(reserved, 1);
   assert.equal(request?.headers.get('User-Agent'), 'Alby/1.0.0 (https://github.com/jiminn-lee/alby)');
-  assert.match(decodeURIComponent(request?.url ?? ''), /blue\\:kind/);
-  assert.match(buildMusicBrainzSearchQuery('blue'), /primarytype:\(album OR ep\)/);
+  const requestUrl = new URL(request?.url ?? 'https://example.test');
+  assert.equal(requestUrl.pathname, '/ws/2/release-group');
+  assert.equal(requestUrl.searchParams.get('fmt'), 'json');
+  assert.equal(requestUrl.searchParams.get('limit'), '10');
+  assert.equal(requestUrl.searchParams.get('query'), buildMusicBrainzSearchQuery('blue:kind'));
+  assert.equal(
+    buildMusicBrainzSearchQuery('AC/DC & Friends: Vol. 1'),
+    'AC\\/DC \\& Friends\\: Vol. 1 AND primarytype:(album OR ep) AND NOT secondarytype:compilation',
+  );
 });
 
 test('429 and 503 errors preserve or supply Retry-After', async () => {
