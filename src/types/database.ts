@@ -118,6 +118,7 @@ export type Database = {
           created_at: string
           external_id: string
           external_url: string | null
+          genres_synced_at: string | null
           provider: string
         }
         Insert: {
@@ -125,6 +126,7 @@ export type Database = {
           created_at?: string
           external_id: string
           external_url?: string | null
+          genres_synced_at?: string | null
           provider: string
         }
         Update: {
@@ -132,6 +134,7 @@ export type Database = {
           created_at?: string
           external_id?: string
           external_url?: string | null
+          genres_synced_at?: string | null
           provider?: string
         }
         Relationships: [
@@ -148,6 +151,62 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "public_album_aggregates"
             referencedColumns: ["album_id"]
+          },
+        ]
+      }
+      album_genres: {
+        Row: {
+          album_id: string
+          created_at: string
+          genre_external_id: string
+          provider: string
+          rank: number
+          vote_count: number
+        }
+        Insert: {
+          album_id: string
+          created_at?: string
+          genre_external_id: string
+          provider: string
+          rank: number
+          vote_count: number
+        }
+        Update: {
+          album_id?: string
+          created_at?: string
+          genre_external_id?: string
+          provider?: string
+          rank?: number
+          vote_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "album_genres_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "album_genres_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "public_album_aggregates"
+            referencedColumns: ["album_id"]
+          },
+          {
+            foreignKeyName: "album_genres_album_id_provider_fkey"
+            columns: ["album_id", "provider"]
+            isOneToOne: false
+            referencedRelation: "album_catalog_sources"
+            referencedColumns: ["album_id", "provider"]
+          },
+          {
+            foreignKeyName: "album_genres_provider_genre_external_id_fkey"
+            columns: ["provider", "genre_external_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_genres"
+            referencedColumns: ["provider", "external_id"]
           },
         ]
       }
@@ -183,6 +242,30 @@ export type Database = {
           release_type?: Database["public"]["Enums"]["album_release_type"]
           title?: string
           track_count?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      catalog_genres: {
+        Row: {
+          created_at: string
+          external_id: string
+          name: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_id: string
+          name: string
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string
+          name?: string
+          provider?: string
           updated_at?: string
         }
         Relationships: []
@@ -582,6 +665,14 @@ export type Database = {
           catalog_provider: string
           maximum_wait_ms?: number
           minimum_interval_ms?: number
+        }
+        Returns: number
+      }
+      sync_catalog_album_genres: {
+        Args: {
+          catalog_provider: string
+          genre_payload: Json
+          target_album_id: string
         }
         Returns: number
       }

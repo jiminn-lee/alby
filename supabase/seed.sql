@@ -1,3 +1,4 @@
 -- Persistent environments intentionally have no fixture rows.
 -- Users originate from configured OAuth providers, profiles are created by
--- public.handle_new_user(), and albums are materialized from MusicBrainz.
+-- public.handle_new_user(), and albums plus normalized genre tags are
+-- materialized from MusicBrainz.

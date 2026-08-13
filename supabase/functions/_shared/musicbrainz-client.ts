@@ -103,7 +103,7 @@ export function createMusicBrainzClient(options: MusicBrainzClientOptions) {
     },
     getReleaseGroup(releaseGroupId: string) {
       const parameters = new URLSearchParams({
-        inc: 'artist-credits',
+        inc: 'artist-credits+genres',
         fmt: 'json',
       });
       return request(`/ws/2/release-group/${encodeURIComponent(releaseGroupId)}?${parameters}`);

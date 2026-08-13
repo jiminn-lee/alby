@@ -64,6 +64,58 @@ begin
       message = 'Staging social fixtures require all four tracked MusicBrainz albums.';
   end if;
 
+  perform public.sync_catalog_album_genres(
+    (
+      select source.album_id
+      from public.album_catalog_sources source
+      where source.provider = 'musicbrainz'
+        and source.external_id = '48117b90-a16e-34ca-a514-19c702df1158'
+    ),
+    'musicbrainz',
+    jsonb_build_array(
+      jsonb_build_object('external_id', 'a2782cb6-1cd0-477c-a61d-b3f8b42dd1b3', 'name', 'house', 'vote_count', 20, 'rank', 1),
+      jsonb_build_object('external_id', '89255676-1f14-4dd8-bbad-fca839d6aff4', 'name', 'electronic', 'vote_count', 14, 'rank', 2),
+      jsonb_build_object('external_id', '5acda04e-995d-4f79-9a66-5fe6a977ce15', 'name', 'french house', 'vote_count', 8, 'rank', 3),
+      jsonb_build_object('external_id', '70adb285-e1f7-458a-823f-5cbda5e291c4', 'name', 'progressive house', 'vote_count', 4, 'rank', 4),
+      jsonb_build_object('external_id', 'e5bba957-8c91-496a-a675-c6d0c6b51c33', 'name', 'dance', 'vote_count', 3, 'rank', 5)
+    )
+  );
+  perform public.sync_catalog_album_genres(
+    (
+      select source.album_id
+      from public.album_catalog_sources source
+      where source.provider = 'musicbrainz'
+        and source.external_id = 'f8f4167d-897c-4b25-a171-638374d1dfa4'
+    ),
+    'musicbrainz',
+    jsonb_build_array(
+      jsonb_build_object('external_id', '4bb4043a-0ee5-4b84-93fa-6ba4567a6ba0', 'name', 'contemporary r&b', 'vote_count', 3, 'rank', 1),
+      jsonb_build_object('external_id', '4e03fb35-d571-4111-824d-88c9f8a3d0c9', 'name', 'alternative r&b', 'vote_count', 2, 'rank', 2),
+      jsonb_build_object('external_id', '911c7bbb-172d-4df8-9478-dbff4296e791', 'name', 'pop', 'vote_count', 1, 'rank', 3),
+      jsonb_build_object('external_id', '31be54b2-4d0c-42df-aa44-c496c7b4c3c3', 'name', 'r&b', 'vote_count', 1, 'rank', 4)
+    )
+  );
+  perform public.sync_catalog_album_genres(
+    (
+      select source.album_id
+      from public.album_catalog_sources source
+      where source.provider = 'musicbrainz'
+        and source.external_id = '18be804e-9b7c-4b19-b6af-3eae9dc752e9'
+    ),
+    'musicbrainz',
+    '[]'::jsonb
+  );
+  perform public.sync_catalog_album_genres(
+    (
+      select source.album_id
+      from public.album_catalog_sources source
+      where source.provider = 'musicbrainz'
+        and source.external_id = '4ddcc4fb-423b-4c98-9265-804071debce9'
+    ),
+    'musicbrainz',
+    '[]'::jsonb
+  );
+
   if exists (
     select 1
     from auth.users app_user

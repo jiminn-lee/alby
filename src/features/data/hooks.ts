@@ -164,7 +164,7 @@ export function useAlbum(albumId?: string) {
     queryFn: async () => {
       const [albumResult, summaryResult, ratingsResult, savedResult] = await Promise.all([
         supabase.from('albums')
-          .select('*, catalog_sources:album_catalog_sources(provider, external_id, external_url)')
+          .select('*, catalog_sources:album_catalog_sources!album_catalog_sources_album_id_fkey(provider, external_id, external_url), genres:album_genres!album_genres_album_id_fkey(provider, vote_count, rank, genre:catalog_genres!album_genres_provider_genre_external_id_fkey(external_id, name))')
           .eq('id', albumId!).single(),
         supabase.rpc('get_album_rating_summary', { target_album_id: albumId! }).single(),
         supabase.from('ratings').select('*').eq('album_id', albumId!).eq('user_id', session!.user.id)

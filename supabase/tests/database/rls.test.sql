@@ -21,7 +21,7 @@ where id between '10000000-0000-0000-0000-000000000001'::uuid
 
 \ir fixtures.inc
 
-select plan(73);
+select plan(91);
 
 insert into auth.users (
   instance_id, id, aud, role, email, email_confirmed_at,
@@ -79,6 +79,25 @@ select has_table(
   'public',
   'album_catalog_sources',
   'albums expose provider-neutral catalog sources'
+);
+
+select has_table(
+  'public',
+  'catalog_genres',
+  'catalog genres have provider-neutral identities'
+);
+
+select has_table(
+  'public',
+  'album_genres',
+  'album genre assignments are normalized'
+);
+
+select has_column(
+  'public',
+  'album_catalog_sources',
+  'genres_synced_at',
+  'catalog sources distinguish unsynchronized and confirmed-empty genres'
 );
 
 select hasnt_column(
@@ -152,6 +171,30 @@ select ok(
     and has_table_privilege('service_role', 'public.album_catalog_sources', 'UPDATE')
     and has_table_privilege('service_role', 'public.album_catalog_sources', 'DELETE'),
   'catalog sources are authenticated-readable and service-role-writable'
+);
+
+select ok(
+  has_table_privilege('authenticated', 'public.catalog_genres', 'SELECT')
+    and not has_table_privilege('authenticated', 'public.catalog_genres', 'INSERT')
+    and has_table_privilege('authenticated', 'public.album_genres', 'SELECT')
+    and not has_table_privilege('authenticated', 'public.album_genres', 'INSERT')
+    and has_table_privilege('service_role', 'public.catalog_genres', 'INSERT')
+    and has_table_privilege('service_role', 'public.album_genres', 'DELETE'),
+  'genre data is authenticated-readable and service-role-writable'
+);
+
+select ok(
+  not has_function_privilege(
+      'authenticated',
+      'public.sync_catalog_album_genres(uuid,text,jsonb)',
+      'EXECUTE'
+    )
+    and has_function_privilege(
+      'service_role',
+      'public.sync_catalog_album_genres(uuid,text,jsonb)',
+      'EXECUTE'
+    ),
+  'only the service role can synchronize catalog genres'
 );
 
 delete from public.catalog_request_slots where provider = 'musicbrainz-test';
@@ -292,6 +335,148 @@ select is(
   'repeat materialization returns the single existing album'
 );
 
+select is(
+  public.sync_catalog_album_genres(
+    (select album_id from new_materialization_result),
+    'musicbrainz',
+    '[
+      {"external_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","name":"house","vote_count":8,"rank":1},
+      {"external_id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","name":"electronic","vote_count":5,"rank":2}
+    ]'::jsonb
+  ),
+  2,
+  'genre synchronization installs one ranked provider snapshot'
+);
+
+select is(
+  (select string_agg(genre.name || ':' || assignment.vote_count || ':' || assignment.rank, ',' order by assignment.rank)
+    from public.album_genres assignment
+    join public.catalog_genres genre
+      on genre.provider = assignment.provider
+     and genre.external_id = assignment.genre_external_id
+    where assignment.album_id = (select album_id from new_materialization_result)
+      and assignment.provider = 'musicbrainz'),
+  'house:8:1,electronic:5:2',
+  'genre synchronization preserves canonical names, votes, and rank'
+);
+
+select ok(
+  (select genres_synced_at is not null
+    from public.album_catalog_sources
+    where album_id = (select album_id from new_materialization_result)
+      and provider = 'musicbrainz'),
+  'a non-empty synchronization marks the catalog source complete'
+);
+
+select throws_ok(
+  $$select public.sync_catalog_album_genres(
+    (select album_id from new_materialization_result),
+    'musicbrainz',
+    '[
+      {"external_id":"10000000-0000-4000-8000-000000000001","name":"one","vote_count":1,"rank":1},
+      {"external_id":"10000000-0000-4000-8000-000000000002","name":"two","vote_count":1,"rank":2},
+      {"external_id":"10000000-0000-4000-8000-000000000003","name":"three","vote_count":1,"rank":3},
+      {"external_id":"10000000-0000-4000-8000-000000000004","name":"four","vote_count":1,"rank":4},
+      {"external_id":"10000000-0000-4000-8000-000000000005","name":"five","vote_count":1,"rank":5},
+      {"external_id":"10000000-0000-4000-8000-000000000006","name":"six","vote_count":1,"rank":5}
+    ]'::jsonb
+  )$$,
+  '22023',
+  'Catalog albums support at most five genres.',
+  'genre synchronization rejects more than five assignments'
+);
+
+select throws_ok(
+  $$select public.sync_catalog_album_genres(
+    (select album_id from new_materialization_result),
+    'musicbrainz',
+    '[
+      {"external_id":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","name":"valid replacement","vote_count":4,"rank":1},
+      {"external_id":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","name":"invalid replacement","vote_count":0,"rank":2}
+    ]'::jsonb
+  )$$,
+  '22023',
+  'Invalid catalog genre.',
+  'genre synchronization rejects non-positive vote counts'
+);
+
+select is(
+  (select count(*) from public.album_genres
+    where album_id = (
+        select album_id
+        from public.album_catalog_sources
+        where provider = 'musicbrainz'
+          and external_id = '11111111-1111-4111-8111-111111111111'
+      )
+      and provider = 'musicbrainz'),
+  2::bigint,
+  'a failed genre replacement preserves the previous snapshot atomically'
+);
+
+select throws_ok(
+  $$update public.album_genres
+    set rank = 6
+    where album_id = (select album_id from new_materialization_result)
+      and provider = 'musicbrainz'
+      and rank = 1$$,
+  '23514',
+  null,
+  'album genre ranks are constrained to one through five'
+);
+
+select throws_ok(
+  $$update public.album_genres
+    set vote_count = 0
+    where album_id = (select album_id from new_materialization_result)
+      and provider = 'musicbrainz'
+      and rank = 1$$,
+  '23514',
+  null,
+  'album genre vote counts must be positive'
+);
+
+select is(
+  public.sync_catalog_album_genres(
+    (select album_id from new_materialization_result),
+    'musicbrainz',
+    '[]'::jsonb
+  ),
+  0,
+  'an empty genre snapshot is synchronized explicitly'
+);
+
+select ok(
+  (select source.genres_synced_at is not null
+      and count(assignment.genre_external_id) = 0
+    from public.album_catalog_sources source
+    left join public.album_genres assignment
+      on assignment.album_id = source.album_id
+     and assignment.provider = source.provider
+    where source.album_id = (select album_id from new_materialization_result)
+      and source.provider = 'musicbrainz'
+    group by source.genres_synced_at),
+  'confirmed-empty genre synchronization removes assignments and marks the source complete'
+);
+
+select is(
+  (select count(*) from public.albums album
+    where album.id = (select album_id from new_materialization_result))
+    + (select count(*) from public.ratings
+      where album_id = '50000000-0000-0000-0000-000000000001'),
+  2::bigint,
+  'genre replacement preserves internal album and social identity'
+);
+
+select is(
+  public.sync_catalog_album_genres(
+    (select album_id from new_materialization_result),
+    'musicbrainz',
+    '[{"external_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","name":"house","vote_count":9,"rank":1}]'::jsonb
+  ),
+  1,
+  'genre synchronization can idempotently restore an enriched snapshot'
+);
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -305,6 +490,19 @@ select is(
       and external_id = '12345678-1234-4234-8234-123456789012'),
   1::bigint,
   'authenticated users can read catalog sources'
+);
+
+select is(
+  (select count(*) from public.album_genres
+    where album_id = (
+        select album_id
+        from public.album_catalog_sources
+        where provider = 'musicbrainz'
+          and external_id = '11111111-1111-4111-8111-111111111111'
+      )
+      and provider = 'musicbrainz'),
+  1::bigint,
+  'authenticated users can read ranked album genres'
 );
 
 select is(

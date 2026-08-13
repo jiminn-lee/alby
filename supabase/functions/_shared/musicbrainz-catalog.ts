@@ -10,6 +10,13 @@ export type MusicBrainzAlbumSearchResult = {
   musicBrainzUrl: string;
 };
 
+export type MusicBrainzGenre = {
+  externalId: string;
+  name: string;
+  voteCount: number;
+  rank: number;
+};
+
 export type MusicBrainzReleaseGroupClassification =
   | { status: 'supported'; album: MusicBrainzAlbumSearchResult }
   | { status: 'unsupported' }
@@ -82,6 +89,37 @@ export function normalizeMusicBrainzSearchInput(value: unknown) {
     throw new Error('Search query must contain 2 to 100 characters.');
   }
   return query;
+}
+
+export function parseMusicBrainzGenres(value: unknown): MusicBrainzGenre[] {
+  if (!isRecord(value) || !Array.isArray(value.genres)) {
+    throw new Error('MusicBrainz returned malformed genre data.');
+  }
+
+  const genresById = new Map<string, Omit<MusicBrainzGenre, 'rank'>>();
+  for (const genre of value.genres) {
+    if (!isRecord(genre)) continue;
+    const externalId = stringValue(genre.id);
+    const name = stringValue(genre.name);
+    const voteCount = genre.count;
+    if (!externalId || !isMusicBrainzReleaseGroupId(externalId)
+        || !name || !Number.isInteger(voteCount) || Number(voteCount) < 1) {
+      continue;
+    }
+
+    const candidate = { externalId, name: name.toLocaleLowerCase('en-US'), voteCount: Number(voteCount) };
+    const existing = genresById.get(externalId);
+    if (!existing || candidate.voteCount > existing.voteCount
+        || (candidate.voteCount === existing.voteCount && candidate.name < existing.name)) {
+      genresById.set(externalId, candidate);
+    }
+  }
+
+  return [...genresById.values()]
+    .sort((left, right) => right.voteCount - left.voteCount
+      || (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+    .slice(0, 5)
+    .map((genre, index) => ({ ...genre, rank: index + 1 }));
 }
 
 export function coverArtUrl(releaseGroupId: string) {

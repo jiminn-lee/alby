@@ -4,6 +4,7 @@ import {
   classifyMusicBrainzReleaseGroup,
   isMusicBrainzReleaseGroupId,
   normalizeMusicBrainzSearchInput,
+  parseMusicBrainzGenres,
   parseMusicBrainzSearchResponse,
 } from '../_shared/musicbrainz-catalog.ts';
 import { createMusicBrainzClient, MusicBrainzUpstreamError } from '../_shared/musicbrainz-client.ts';
@@ -101,13 +102,13 @@ export default {
 
         const existingSourceResult = await context.supabaseAdmin
           .from('album_catalog_sources')
-          .select('album_id')
+          .select('album_id, genres_synced_at')
           .eq('provider', 'musicbrainz')
           .eq('external_id', releaseGroupId)
           .maybeSingle();
         if (existingSourceResult.error) throw existingSourceResult.error;
 
-        if (existingSourceResult.data) {
+        if (existingSourceResult.data?.genres_synced_at) {
           const existingAlbumResult = await context.supabaseAdmin
             .from('albums')
             .select('*')
@@ -142,27 +143,56 @@ export default {
           );
         }
 
-        const materializeResult = await context.supabaseAdmin.rpc('materialize_catalog_album', {
+        let genres;
+        try {
+          genres = parseMusicBrainzGenres(musicBrainzPayload);
+        } catch {
+          throw new ApiError(
+            'MusicBrainz returned an invalid response.',
+            502,
+            'musicbrainz_invalid_response',
+          );
+        }
+
+        let albumId = existingSourceResult.data?.album_id;
+        let outcome = 'existing';
+        if (!albumId) {
+          const materializeResult = await context.supabaseAdmin.rpc('materialize_catalog_album', {
+            catalog_provider: 'musicbrainz',
+            catalog_external_id: canonicalAlbum.releaseGroupId,
+            catalog_external_url: canonicalAlbum.musicBrainzUrl,
+            album_title: canonicalAlbum.title,
+            album_artist_name: canonicalAlbum.artistName,
+            album_cover_path: canonicalAlbum.coverUrl,
+            album_release_date: canonicalAlbum.releaseDate,
+            album_track_count: null,
+            album_release_type: canonicalAlbum.releaseType,
+          }).single();
+          if (materializeResult.error) throw materializeResult.error;
+          albumId = materializeResult.data.album_id;
+          outcome = materializeResult.data.outcome;
+        }
+
+        const genreSyncResult = await context.supabaseAdmin.rpc('sync_catalog_album_genres', {
+          target_album_id: albumId,
           catalog_provider: 'musicbrainz',
-          catalog_external_id: canonicalAlbum.releaseGroupId,
-          catalog_external_url: canonicalAlbum.musicBrainzUrl,
-          album_title: canonicalAlbum.title,
-          album_artist_name: canonicalAlbum.artistName,
-          album_cover_path: canonicalAlbum.coverUrl,
-          album_release_date: canonicalAlbum.releaseDate,
-          album_track_count: null,
-          album_release_type: canonicalAlbum.releaseType,
-        }).single();
-        if (materializeResult.error) throw materializeResult.error;
+          genre_payload: genres.map((genre) => ({
+            external_id: genre.externalId,
+            name: genre.name,
+            vote_count: genre.voteCount,
+            rank: genre.rank,
+          })),
+        });
+        if (genreSyncResult.error) throw genreSyncResult.error;
 
         const albumResult = await context.supabaseAdmin
           .from('albums')
           .select('*')
-          .eq('id', materializeResult.data.album_id)
+          .eq('id', albumId)
           .single();
         if (albumResult.error) throw albumResult.error;
 
-        return json({ album: albumResult.data, outcome: materializeResult.data.outcome });
+        return json({ album: albumResult.data, outcome });
       }
 
       throw new ApiError('Action must be search or materialize.', 400, 'invalid_action');

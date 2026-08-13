@@ -17,6 +17,7 @@ import { MarqueeText } from '@/components/marquee-text';
 import { AlbyButton, ScreenState } from '@/components/ui';
 import { Fonts, MaxContentWidth, Palette, PressedOpacity } from '@/constants/theme';
 import { useAlbum, useAlbumActivity, useDeleteRatingMutation, useListenLaterMutation } from '@/features/data/hooks';
+import { formatGenreName } from '@/lib/genres';
 import { getMediaUrl } from '@/lib/media';
 
 export default function AlbumDetailScreen() {
@@ -44,6 +45,11 @@ export default function AlbumDetailScreen() {
   const musicBrainzSource = album.catalog_sources.find((source) => source.provider === 'musicbrainz');
   const musicBrainzUrl = musicBrainzSource?.external_url
     ?? (musicBrainzSource ? `https://musicbrainz.org/release-group/${musicBrainzSource.external_id}` : null);
+  const genres = album.genres
+    .filter((genre) => genre.provider === 'musicbrainz' && genre.genre)
+    .sort((left, right) => left.rank - right.rank)
+    .slice(0, 5)
+    .flatMap(({ genre }) => genre ? [{ externalId: genre.external_id, name: formatGenreName(genre.name) }] : []);
   const year = album.release_date?.slice(0, 4) ?? '—';
   const metadata = [
     album.artist_name,
@@ -106,6 +112,19 @@ export default function AlbumDetailScreen() {
             <View style={styles.albumCopy}>
               <MarqueeText align="center" style={styles.artist} text={metadata} />
               <Text style={styles.title}>{album.title}</Text>
+              {genres.length ? (
+                <View
+                  accessible
+                  accessibilityLabel={`Genres: ${genres.map(({ name }) => name).join(', ')}`}
+                  accessibilityRole="text"
+                  style={styles.genreTags}>
+                  {genres.map((genre) => (
+                    <View key={genre.externalId} style={styles.genreTag}>
+                      <Text style={styles.genreTagText}>{genre.name}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
             <View style={styles.actions}>
               <AlbyButton icon={PlusCircleIcon} label={myRating ? 'Rate Again' : 'Rate'} onPress={openRatingComposer} size="compact" />
@@ -209,6 +228,9 @@ const styles = StyleSheet.create({
   albumCopy: { width: '100%', alignItems: 'center' },
   artist: { color: Palette.muted, fontFamily: Fonts.sans, fontSize: 10, lineHeight: 12, textAlign: 'center' },
   title: { color: Palette.ink, fontFamily: Fonts.brandMedium, fontSize: 24, lineHeight: 29, textAlign: 'center' },
+  genreTags: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 2, marginTop: 2 },
+  genreTag: { maxWidth: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.muted, borderWidth: 1, borderColor: Palette.border, borderRadius: 17, paddingHorizontal: 8, paddingVertical: 2 },
+  genreTagText: { flexShrink: 1, color: Palette.canvas, fontFamily: Fonts.medium, fontSize: 8, lineHeight: 10, textAlign: 'center' },
   actions: { width: '100%', minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   iconAction: { width: 32, height: 32, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sourceAction: { backgroundColor: '#F0E9E1', borderColor: Palette.border },

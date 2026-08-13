@@ -146,6 +146,7 @@ Key fields:
 - Release date.
 - Release type (`album` or `ep`).
 - Provider-neutral catalog source identities and URLs.
+- Up to five ranked provider genres stored through normalized catalog identities.
 - Track count and metadata, if available from source.
 
 Albums should be created in Supabase when a user interacts with a MusicBrainz release-group result, so alby has stable internal records independent of any provider ID.
@@ -319,6 +320,7 @@ Required content:
 - Artist.
 - Release year/date.
 - Album information and metadata.
+- Up to five ranked MusicBrainz genre tags beneath the title when genre data exists.
 - MusicBrainz button that opens the album's canonical release-group page when available.
 - Listen Later button in the unrated state.
 - Share button.
@@ -342,6 +344,8 @@ Provisional behavior:
 - The three-dot menu on a personal rating exposes deletion. Deleting the user's only rating returns the album to its unrated actions.
 - Friend and Global averages use only each eligible user's newest rating so rating history does not give one person extra weight.
 - MusicBrainz is the committed external metadata destination for MusicBrainz-backed albums.
+- Genre tags are non-interactive, omitted entirely for confirmed-empty albums, and do not appear in feeds, lists, the rating composer, or the compact header.
+- Genre tags follow Album Detail node `53:46`: a centered wrapping row with a 2px gap, muted fill, border, 8px horizontal and 2px vertical padding, a 17px radius, and 8px medium canvas-colored text.
 
 ### Rating Composer
 
@@ -553,6 +557,10 @@ Implementation direction:
 - When a user selects a result, create, reconcile, or reuse an internal Supabase album record before opening Album Detail.
 - Store provider IDs and URLs in `album_catalog_sources`, separate from the internal album record.
 - Store the MusicBrainz release-group ID and URL, Cover Art Archive URL, credited artist text, partial first-release date, and Album/EP release type.
+- Import only the release group's top-level MusicBrainz genres; never inherit artist genres. Keep entries with a valid MusicBrainz ID, a non-empty canonical name, and a positive integer vote count.
+- Deduplicate genres by MusicBrainz genre ID, sort by vote count descending and then canonical name, and retain at most five. Store canonical lowercase names in `catalog_genres` and ranked album assignments in `album_genres`.
+- Track genre synchronization on `album_catalog_sources`, including confirmed-empty results, so interrupted materializations can retry the idempotent second synchronization without replacing the album or its social identity.
+- Display genre names in design-style Title Case while preserving canonical storage, including `r&b` as `R&B`. Genre tags remain display-only for now; their normalized provider identities are intended to support later discovery queries.
 - Treat track count as optional because release groups may contain editions with different track lists.
 - Send a contactable Alby User-Agent and serialize MusicBrainz requests to respect the documented average one-request-per-second limit.
 - Do not use Apple Music as an alternate catalog and do not enrich discovery with ListenBrainz or Last.fm.
@@ -598,6 +606,8 @@ Implemented tables:
 - `profiles`
 - `albums`
 - `album_catalog_sources`
+- `catalog_genres`
+- `album_genres`
 - `ratings`
 - `listen_later_items`
 - `follows`
@@ -611,6 +621,7 @@ RLS is enforced around:
 - Users can manage their own listen-later items.
 - Account privacy and mutual-follow access use one shared database rule.
 - Album catalog writes remain service-role operations.
+- Album and catalog genre reads require authentication; genre synchronization remains a service-role operation.
 - Feed and engagement queries inherit the activity author's privacy.
 
 ## 16. Design Handoff
@@ -646,6 +657,7 @@ For the first working design iteration, assume:
 - MusicBrainz release groups are the MVP catalog source and canonical external metadata destination.
 - Cover Art Archive is the album-artwork source for MusicBrainz results.
 - Catalog identities are provider-neutral and stored separately from internal album IDs.
+- MusicBrainz genre identities are normalized, limited to five ranked release-group genres per album, and displayed only on Album Detail until discovery is designed.
 - Explore searches albums and EPs by title or credited artist; personalized and new-release discovery is deferred.
 - Apple Music, ListenBrainz, and Last.fm are not part of the catalog or discovery implementation.
 - The Figma file is the design authority; Phosphor icons are imported directly and the rating disc remains the custom visual asset.

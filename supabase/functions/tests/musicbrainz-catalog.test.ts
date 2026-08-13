@@ -7,6 +7,7 @@ import {
   isMusicBrainzReleaseGroupId,
   normalizeMusicBrainzReleaseGroup,
   normalizeMusicBrainzSearchInput,
+  parseMusicBrainzGenres,
   parseMusicBrainzSearchResponse,
 } from '../_shared/musicbrainz-catalog.ts';
 import {
@@ -14,6 +15,7 @@ import {
   createMusicBrainzClient,
   MusicBrainzUpstreamError,
 } from '../_shared/musicbrainz-client.ts';
+import { formatGenreName } from '../../../src/lib/genres.ts';
 
 const validId = '12345678-1234-4234-8234-123456789012';
 
@@ -24,6 +26,7 @@ function releaseGroup(overrides: Record<string, unknown> = {}) {
     'primary-type': 'Album',
     'secondary-types': [],
     'first-release-date': '1959-08-17',
+    genres: [],
     'artist-credit': [
       { name: 'Miles Davis', joinphrase: ' feat. ' },
       { name: 'Guest Artist' },
@@ -74,6 +77,49 @@ test('malformed items are discarded and malformed search envelopes throw', () =>
   assert.throws(() => parseMusicBrainzSearchResponse({}), /malformed/);
 });
 
+test('release-group genres are filtered, deduplicated, deterministically ranked, and capped at five', () => {
+  const duplicateId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const result = parseMusicBrainzGenres(releaseGroup({
+    genres: [
+      { id: duplicateId, name: 'house', count: 3 },
+      { id: duplicateId, name: 'House', count: 5 },
+      { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', name: 'zeta', count: 4 },
+      { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', name: 'alpha', count: 4 },
+      { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', name: 'electronic', count: 3 },
+      { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', name: 'dance', count: 2 },
+      { id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', name: 'disco', count: 1 },
+      { id: '11111111-1111-4111-8111-111111111111', name: 'zero votes', count: 0 },
+      { id: '22222222-2222-4222-8222-222222222222', name: 'fractional', count: 1.5 },
+      { id: 'not-a-uuid', name: 'invalid id', count: 10 },
+      { id: '33333333-3333-4333-8333-333333333333', name: ' ', count: 10 },
+    ],
+    'artist-credit': [{
+      name: 'Miles Davis',
+      artist: { genres: [{ id: '44444444-4444-4444-8444-444444444444', name: 'jazz', count: 99 }] },
+    }],
+  }));
+
+  assert.deepEqual(result, [
+    { externalId: duplicateId, name: 'house', voteCount: 5, rank: 1 },
+    { externalId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', name: 'alpha', voteCount: 4, rank: 2 },
+    { externalId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', name: 'zeta', voteCount: 4, rank: 3 },
+    { externalId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', name: 'electronic', voteCount: 3, rank: 4 },
+    { externalId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', name: 'dance', voteCount: 2, rank: 5 },
+  ]);
+});
+
+test('release-group genre parsing supports confirmed-empty data and rejects malformed envelopes', () => {
+  assert.deepEqual(parseMusicBrainzGenres(releaseGroup()), []);
+  assert.throws(() => parseMusicBrainzGenres({}), /malformed genre data/);
+  assert.throws(() => parseMusicBrainzGenres({ genres: null }), /malformed genre data/);
+});
+
+test('genre display casing preserves canonical acronyms and title-case conventions', () => {
+  assert.equal(formatGenreName('contemporary r&b'), 'Contemporary R&B');
+  assert.equal(formatGenreName('drum and bass'), 'Drum and Bass');
+  assert.equal(formatGenreName('uk hip-hop/electronic'), 'UK Hip-Hop/Electronic');
+});
+
 test('search escapes Lucene syntax and sends the contactable User-Agent after reserving a slot', async () => {
   let reserved = 0;
   let request: Request | null = null;
@@ -113,7 +159,7 @@ test('429 and 503 errors preserve or supply Retry-After', async () => {
   }
 });
 
-test('release-group lookups encode IDs and map missing releases', async () => {
+test('release-group lookups request artist credits and genres, encode IDs, and map missing releases', async () => {
   let requestedUrl = '';
   const client = createMusicBrainzClient({
     fetchImpl: (async (input) => {
@@ -128,4 +174,5 @@ test('release-group lookups encode IDs and map missing releases', async () => {
       && error.code === 'musicbrainz_release_group_not_found',
   );
   assert.match(requestedUrl, new RegExp(validId));
+  assert.equal(new URL(requestedUrl).searchParams.get('inc'), 'artist-credits+genres');
 });
