@@ -341,7 +341,7 @@ Provisional behavior:
 - Friend Rating uses mutual follows; Global Rating uses public-profile ratings only.
 - If the user has already rated the album, replace Rate with Rate Again, hide Listen Later, and pin the user's newest rating above older personal ratings and friend activity.
 - Friend and Global values use the dedicated 24px aggregate disc variant with its right half masked.
-- The three-dot menu on a personal rating exposes deletion. Deleting the user's only rating returns the album to its unrated actions.
+- The three-dot menu on a personal rating post appears on Home, Profile Feed, and Album Detail. It exposes a disabled Share placeholder and deletion; deleting the user's only rating returns the album to its unrated actions.
 - Friend and Global averages use only each eligible user's newest rating so rating history does not give one person extra weight.
 - MusicBrainz is the committed external metadata destination for MusicBrainz-backed albums.
 - Genre tags are non-interactive, omitted entirely for confirmed-empty albums, and do not appear in feeds, lists, the rating composer, or the compact header.
@@ -357,7 +357,7 @@ Required content:
 - Half-point rating disc control.
 - Optional note field.
 - Save button.
-- Every submission creates a new rating-history entry. Deletion is available from the rating's three-dot menu on Album Detail.
+- Every submission creates a new rating-history entry. Deletion is available from the rating's three-dot menu wherever the personal rating post appears.
 
 The composer should feel light and fast, not like writing a formal review.
 

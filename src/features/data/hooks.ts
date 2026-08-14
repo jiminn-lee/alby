@@ -359,15 +359,43 @@ export function useRatingMutation() {
   });
 }
 
+export type DeleteRatingTarget = {
+  albumId: string;
+} & (
+  | { activityId: string; ratingId?: never }
+  | { activityId?: never; ratingId: string }
+);
+
 export function useDeleteRatingMutation() {
   const { session } = useAuth(); const invalidate = useInvalidateSocial();
   return useMutation({
-    mutationFn: async ({ albumId, ratingId }: { albumId: string; ratingId: string }) => {
+    mutationFn: async (target: DeleteRatingTarget) => {
       if (!session) throw new Error('Sign in required.');
-      const { error } = await supabase.from('ratings').delete().eq('id', ratingId).eq('user_id', session.user.id);
+
+      let ratingId = target.ratingId;
+      if (!ratingId) {
+        const activityId = target.activityId;
+        if (!activityId) throw new Error('This rating is no longer available.');
+        const { data, error } = await supabase.from('activity_events')
+          .select('rating_id')
+          .eq('id', activityId)
+          .eq('actor_id', session.user.id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data?.rating_id) throw new Error('This rating is no longer available.');
+        ratingId = data.rating_id;
+      }
+
+      const { data, error } = await supabase.from('ratings')
+        .delete()
+        .eq('id', ratingId)
+        .eq('user_id', session.user.id)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('This rating is no longer available.');
     },
-    onSuccess: (_data, variables) => invalidate(variables.albumId),
+    onSettled: (_data, _error, variables) => invalidate(variables.albumId),
   });
 }
 

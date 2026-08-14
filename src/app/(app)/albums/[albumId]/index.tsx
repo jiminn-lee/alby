@@ -7,7 +7,7 @@ import { DatabaseIcon } from 'phosphor-react-native/src/icons/Database';
 import { ExportIcon } from 'phosphor-react-native/src/icons/Export';
 import { PlusCircleIcon } from 'phosphor-react-native/src/icons/PlusCircle';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, ScrollView, Share, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Animated, Pressable, ScrollView, Share, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AlbumArtwork } from '@/components/album-artwork';
@@ -16,7 +16,7 @@ import { ActivityFeed } from '@/components/social-feed';
 import { MarqueeText } from '@/components/marquee-text';
 import { AlbyButton, ScreenState } from '@/components/ui';
 import { Fonts, MaxContentWidth, Palette, PressedOpacity } from '@/constants/theme';
-import { useAlbum, useAlbumActivity, useDeleteRatingMutation, useListenLaterMutation } from '@/features/data/hooks';
+import { useAlbum, useAlbumActivity, useListenLaterMutation } from '@/features/data/hooks';
 import { formatGenreName } from '@/lib/genres';
 import { getMediaUrl } from '@/lib/media';
 
@@ -25,7 +25,6 @@ export default function AlbumDetailScreen() {
   const detail = useAlbum(albumId);
   const activity = useAlbumActivity(albumId, detail.data?.myRating?.id, detail.isSuccess);
   const listenLater = useListenLaterMutation();
-  const removeRating = useDeleteRatingMutation();
   const scrollRef = useRef<ScrollView>(null);
   const [scrollY] = useState(() => new Animated.Value(0));
   const [heroBottom, setHeroBottom] = useState<number | null>(null);
@@ -67,14 +66,6 @@ export default function AlbumDetailScreen() {
   const openRatingComposer = () => router.push({ pathname: '/albums/[albumId]/rate', params: { albumId } });
   const toggleListenLater = () => listenLater.mutate({ albumId: album.id, shouldSave: !isSaved });
   const share = () => Share.share({ message: `${album.title} by ${album.artist_name} on Alby: alby://albums/${album.id}` });
-  const confirmDelete = (ratingId: string) => Alert.alert(
-    'Delete rating?',
-    'This removes this rating and its activity. An older rating will become your current rating if one exists.',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => removeRating.mutate({ albumId: album.id, ratingId }) },
-    ],
-  );
 
   return (
     <View style={styles.screen}>
@@ -151,7 +142,7 @@ export default function AlbumDetailScreen() {
 
           <View style={styles.activityArea}>
             {activity.isLoading ? <ScreenState /> : activity.error ? <ScreenState error={activity.error.message} /> : activity.data?.length ? (
-              <ActivityFeed albumDetail items={activity.data} onDeleteRating={confirmDelete} pinnedRatingId={myRating?.id} />
+              <ActivityFeed albumDetail items={activity.data} pinnedRatingId={myRating?.id} />
             ) : <Text style={styles.empty}>No visible activity yet.</Text>}
           </View>
         </View>

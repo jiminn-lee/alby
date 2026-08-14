@@ -1,6 +1,13 @@
 import { router } from 'expo-router';
+import { Alert } from 'react-native';
 
-import { useLikeMutation, useListenLaterMutation, type SocialActivity } from '@/features/data/hooks';
+import {
+  useDeleteRatingMutation,
+  useLikeMutation,
+  useListenLaterMutation,
+  type DeleteRatingTarget,
+  type SocialActivity,
+} from '@/features/data/hooks';
 import { getMediaUrl } from '@/lib/media';
 import { useAuth } from '@/providers/auth-provider';
 import type { HomeFeedItem } from '@/types/domain';
@@ -16,6 +23,7 @@ import {
 export function HomeFeed({ items }: { items: HomeFeedItem[] }) {
   const like = useLikeMutation();
   const listenLater = useListenLaterMutation();
+  const confirmDeleteRating = useConfirmDeleteRating();
   const { session } = useAuth();
 
   return <>{items.map((item) => {
@@ -55,6 +63,9 @@ export function HomeFeed({ items }: { items: HomeFeedItem[] }) {
         cover: getMediaUrl(item.cover_path) ?? '',
         kind: 'rating',
         listenNumber: item.rating_listen_number ?? undefined,
+        menu: isOwnActivity ? {
+          onDelete: () => confirmDeleteRating({ activityId: item.id, albumId: item.album_id }),
+        } : undefined,
         note: item.rating_note ?? undefined,
         rating: item.rating_value,
         ratingTone: tone(item.rating_value),
@@ -73,14 +84,14 @@ export function HomeFeed({ items }: { items: HomeFeedItem[] }) {
   })}</>;
 }
 
-export function ActivityFeed({ albumDetail = false, items, onDeleteRating, pinnedRatingId }: {
+export function ActivityFeed({ albumDetail = false, items, pinnedRatingId }: {
   albumDetail?: boolean;
   items: SocialActivity[];
-  onDeleteRating?: (ratingId: string) => void;
   pinnedRatingId?: string;
 }) {
   const like = useLikeMutation();
   const listenLater = useListenLaterMutation();
+  const confirmDeleteRating = useConfirmDeleteRating();
   const { session } = useAuth();
   const chronologicalItems = albumDetail ? [...items].sort((a, b) => (
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime() || b.id.localeCompare(a.id)
@@ -128,8 +139,10 @@ export function ActivityFeed({ albumDetail = false, items, onDeleteRating, pinne
         ...common,
         kind: 'rating' as const,
         listenNumber: item.rating_listen_number ?? undefined,
+        menu: isOwnRating ? {
+          onDelete: () => confirmDeleteRating({ albumId: item.album_id, ratingId: item.rating!.id }),
+        } : undefined,
         note: item.rating.note ?? undefined,
-        onMenu: isOwnRating && onDeleteRating ? () => onDeleteRating(item.rating!.id) : undefined,
         rating: item.rating.value,
         ratingTone: tone(item.rating.value),
       };
@@ -162,6 +175,25 @@ export function ActivityFeed({ albumDetail = false, items, onDeleteRating, pinne
     };
     return <SavedPost key={item.id} post={post} />;
   })}</>;
+}
+
+function useConfirmDeleteRating() {
+  const removeRating = useDeleteRatingMutation();
+
+  return (target: DeleteRatingTarget) => Alert.alert(
+    'Delete rating?',
+    'This removes this rating and its activity. An older rating will become your current rating if one exists.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => removeRating.mutate(target, {
+          onError: (error) => Alert.alert('Couldn’t delete rating', error.message || 'Please try again.'),
+        }),
+      },
+    ],
+  );
 }
 
 function actionLabel(type: string, value?: number | null) {

@@ -3,11 +3,13 @@ import type { Icon, IconWeight } from 'phosphor-react-native';
 import { BookmarkSimpleIcon } from 'phosphor-react-native/src/icons/BookmarkSimple';
 import { ChatCircleIcon } from 'phosphor-react-native/src/icons/ChatCircle';
 import { DotsThreeIcon } from 'phosphor-react-native/src/icons/DotsThree';
+import { ExportIcon } from 'phosphor-react-native/src/icons/Export';
 import { HeartIcon } from 'phosphor-react-native/src/icons/Heart';
 import { PlusCircleIcon } from 'phosphor-react-native/src/icons/PlusCircle';
 import { RepeatIcon } from 'phosphor-react-native/src/icons/Repeat';
-import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { TrashIcon } from 'phosphor-react-native/src/icons/Trash';
+import { useRef, useState, type ReactNode } from 'react';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Fonts, Palette, PressedOpacity } from '@/constants/theme';
 
@@ -53,11 +55,16 @@ type AlbumRatingPresentation = {
   pinned: boolean;
 };
 
+export type RatingPostMenuData = {
+  onDelete: () => void;
+  onShare?: () => void;
+};
+
 export type RatingPostData = PostBaseData & {
   kind: 'rating';
   listenNumber?: number;
+  menu?: RatingPostMenuData;
   note?: string;
-  onMenu?: () => void;
   rating: number;
   ratingTone: DiscTone;
 } & (FeedPresentation | AlbumRatingPresentation);
@@ -78,7 +85,7 @@ export function RatingPost({ post }: { post: RatingPostData }) {
         avatar={post.avatar}
         initial={post.initial}
         listenNumber={post.listenNumber}
-        onMenu={post.onMenu}
+        menu={post.menu}
         user={post.user}
       />
       <AlbumSummary
@@ -152,11 +159,11 @@ function PostHeader({
   avatar,
   initial,
   listenNumber,
-  onMenu,
+  menu,
   user,
 }: Pick<PostBaseData, 'action' | 'avatar' | 'initial' | 'user'> & {
   listenNumber?: number;
-  onMenu?: () => void;
+  menu?: RatingPostMenuData;
 }) {
   return (
     <View style={styles.activityHeader}>
@@ -179,17 +186,102 @@ function PostHeader({
           </View>
         )}
       </View>
-      {onMenu && (
-        <Pressable
-          accessibilityLabel="Rating options"
-          accessibilityRole="button"
-          hitSlop={12}
-          onPress={onMenu}
-          style={({ pressed }) => pressed && styles.pressed}>
-          <DotsThreeIcon color={Palette.muted} size={16} weight="bold" />
-        </Pressable>
-      )}
+      {menu && <RatingPostMenu menu={menu} />}
     </View>
+  );
+}
+
+const MenuWidth = 88;
+const MenuHeight = 74;
+const MenuEdgeInset = 8;
+
+function RatingPostMenu({ menu }: { menu: RatingPostMenuData }) {
+  const triggerRef = useRef<View>(null);
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const visible = position !== null;
+
+  const close = () => setPosition(null);
+  const toggle = () => {
+    if (visible) {
+      close();
+      return;
+    }
+
+    triggerRef.current?.measureInWindow((x, y, width, height) => {
+      const maximumLeft = Math.max(MenuEdgeInset, windowWidth - MenuWidth - MenuEdgeInset);
+      const left = Math.min(Math.max(MenuEdgeInset, x + width - MenuWidth), maximumLeft);
+      const belowTop = y + height + 4;
+      const top = belowTop + MenuHeight <= windowHeight - MenuEdgeInset
+        ? belowTop
+        : Math.max(MenuEdgeInset, y - MenuHeight);
+      setPosition({ left, top });
+    });
+  };
+  const select = (action?: () => void) => {
+    if (!action) return;
+    close();
+    setTimeout(action, 0);
+  };
+
+  return (
+    <>
+      <Pressable
+        ref={triggerRef}
+        accessibilityHint="Shows actions for this rating"
+        accessibilityLabel="Rating options"
+        accessibilityRole="button"
+        accessibilityState={{ expanded: visible }}
+        collapsable={false}
+        hitSlop={12}
+        onPress={toggle}
+        style={({ pressed }) => pressed && styles.pressed}>
+        <DotsThreeIcon color={Palette.muted} size={24} weight="bold" />
+      </Pressable>
+      <Modal
+        animationType="none"
+        onRequestClose={close}
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        transparent
+        visible={visible}>
+        <View style={styles.menuLayer}>
+          <Pressable
+            accessibilityLabel="Close rating options"
+            accessibilityRole="button"
+            onPress={close}
+            style={StyleSheet.absoluteFill}
+          />
+          {position && (
+            <View
+              accessibilityViewIsModal
+              style={[styles.menu, { left: position.left, top: position.top }]}>
+              <Pressable
+                accessibilityLabel="Share rating"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !menu.onShare }}
+                disabled={!menu.onShare}
+                hitSlop={4}
+                onPress={() => select(menu.onShare)}
+                style={({ pressed }) => [styles.menuAction, pressed && styles.pressed]}>
+                <ExportIcon color={Palette.ink} size={16} weight="regular" />
+                <Text style={styles.menuActionText}>Share</Text>
+              </Pressable>
+              <View style={styles.menuDivider} />
+              <Pressable
+                accessibilityLabel="Delete rating"
+                accessibilityRole="button"
+                hitSlop={4}
+                onPress={() => select(menu.onDelete)}
+                style={({ pressed }) => [styles.menuAction, pressed && styles.pressed]}>
+                <TrashIcon color="#D84C4C" size={16} weight="regular" />
+                <Text style={[styles.menuActionText, styles.menuDeleteText]}>Delete</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -412,6 +504,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingVertical: 12,
+  },
+  menuLayer: {
+    flex: 1,
+  },
+  menu: {
+    position: 'absolute',
+    width: MenuWidth,
+    height: MenuHeight,
+    padding: 12,
+    gap: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: 12,
+    borderCurve: 'continuous',
+    backgroundColor: Palette.canvas,
+  },
+  menuAction: {
+    width: '100%',
+    height: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  menuActionText: {
+    color: Palette.ink,
+    fontFamily: Fonts.medium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  menuDeleteText: {
+    color: '#D84C4C',
+  },
+  menuDivider: {
+    width: '100%',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Palette.border,
   },
   activityCopy: {
     flex: 1,
